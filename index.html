@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Moon Light</title>
+  <style>
+    :root { --bg:#0b1020; --panel:#111827; --panel2:#1e293b; --text:#e5e7eb; --muted:#9ca3af; --accent:#7dd3fc; --border:#334155; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; font-family:Segoe UI,Arial,sans-serif; background:linear-gradient(180deg,#0b1020,#111827); color:var(--text); }
+    .wrap { max-width:900px; margin:32px auto; padding:16px; }
+    .card { overflow:hidden; background:rgba(17,24,39,.95); border:1px solid var(--border); border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.35); }
+    header { padding:20px 24px; border-bottom:1px solid var(--border); }
+    h1 { margin:0; font-size:2rem; }
+    .body { display:flex; flex-direction:column; min-height:520px; }
+    #chat { flex:1; overflow:auto; padding:20px 24px; display:flex; flex-direction:column; gap:8px; }
+    .msg { max-width:75%; padding:12px 14px; border-radius:14px; line-height:1.5; white-space:pre-wrap; }
+    .user { align-self:flex-end; background:#0f172a; border:1px solid var(--border); }
+    .assistant { align-self:flex-start; background:var(--panel2); border:1px solid var(--border); }
+    .meta { color:var(--muted); font-size:.8rem; margin:0 4px 4px; }
+    .settings { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 24px 18px; }
+    form { display:grid; grid-template-columns:1fr auto; gap:10px; padding:18px 24px 22px; border-top:1px solid var(--border); }
+    input,button { font:inherit; border-radius:10px; }
+    input { width:100%; padding:12px 14px; background:#0f172a; color:var(--text); border:1px solid var(--border); }
+    button { background:var(--accent); color:#08111a; border:0; font-weight:700; padding:12px 18px; cursor:pointer; }
+    button:disabled { opacity:.7; cursor:wait; }
+    @media (max-width:640px) { .settings,form { grid-template-columns:1fr; } .msg { max-width:90%; } }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card">
+      <header><h1>Moon Light</h1></header>
+      <div class="body">
+        <div id="chat" aria-live="polite"></div>
+        <div class="settings">
+          <input id="apiUrl" type="url" placeholder="URL de la API, por ejemplo https://tu-api.onrender.com" aria-label="URL de la API">
+          <input id="token" type="password" placeholder="Token de la API" aria-label="Token de la API">
+        </div>
+        <form id="form">
+          <input id="prompt" type="text" placeholder="Escribe tu pregunta..." aria-label="Pregunta" autocomplete="off">
+          <button id="send" type="submit">Enviar</button>
+        </form>
+      </div>
+    </section>
+  </main>
+  <script>
+    const chat = document.getElementById('chat');
+    const form = document.getElementById('form');
+    const prompt = document.getElementById('prompt');
+    const apiUrl = document.getElementById('apiUrl');
+    const token = document.getElementById('token');
+    const button = document.getElementById('send');
+
+    apiUrl.value = localStorage.getItem('moonlight-api-url') || '';
+    apiUrl.addEventListener('change', () => localStorage.setItem('moonlight-api-url', apiUrl.value.trim().replace(/\/$/, '')));
+
+    function addMessage(role, text) {
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = role === 'user' ? 'Tú' : 'Moon Light';
+      const message = document.createElement('div');
+      message.className = 'msg ' + role;
+      message.textContent = text;
+      chat.append(meta, message);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const question = prompt.value.trim();
+      const baseUrl = apiUrl.value.trim().replace(/\/$/, '');
+      if (!question || !baseUrl) return addMessage('assistant', 'Escribe la URL de tu API antes de enviar una pregunta.');
+      addMessage('user', question);
+      prompt.value = '';
+      button.disabled = true;
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (token.value.trim()) headers.Authorization = 'Bearer ' + token.value.trim();
+        const response = await fetch(baseUrl + '/v1/chat/completions', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ model: 'moonlight', messages: [{ role: 'user', content: question }] })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || data.error_openai?.message || 'La API rechazó la petición.');
+        addMessage('assistant', data.choices?.[0]?.message?.content || 'Sin respuesta.');
+      } catch (error) {
+        addMessage('assistant', 'No pude conectar con la API: ' + error.message);
+      } finally {
+        button.disabled = false;
+        prompt.focus();
+      }
+    });
+
+    addMessage('assistant', 'Hola. Configura la URL de la API para comenzar.');
+  </script>
+</body>
+</html>
