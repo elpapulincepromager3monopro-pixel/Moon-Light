@@ -1,2 +1,218 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Moon Light</title><style>body{margin:0;min-height:100vh;font-family:Arial,sans-serif;background:#0b1020;color:#e5e7eb}.wrap{max-width:900px;margin:32px auto;padding:16px}.card{background:#111827;border:1px solid #334155;border-radius:16px;overflow:hidden}header{padding:20px 24px;border-bottom:1px solid #334155}h1{margin:0}.body{display:flex;flex-direction:column;min-height:520px}#chat{flex:1;padding:20px 24px}.msg{padding:12px 14px;margin-bottom:8px;border-radius:14px;white-space:pre-wrap;background:#1e293b}form{display:flex;gap:10px;padding:18px 24px;border-top:1px solid #334155}input{flex:1;padding:12px 14px;background:#0f172a;color:#e5e7eb;border:1px solid #334155;border-radius:10px}button{padding:12px 18px;background:#7dd3fc;border:0;border-radius:10px;font-weight:700}@media(max-width:640px){form{flex-direction:column}}</style></head><body><main class="wrap"><section class="card"><header><h1>Moon Light</h1></header><div class="body"><div id="chat"><div class="msg">Hola. Puedes usar Moon Light directamente, sin clave API.</div></div><form id="form"><input id="question" placeholder="Escribe tu pregunta..." autocomplete="off"><button type="submit">Enviar</button></form></div></section></main><script>const form=document.getElementById("form"),input=document.getElementById("question"),chat=document.getElementById("chat");function show(text){const box=document.createElement("div");box.className="msg";box.textContent=text;chat.appendChild(box)}function answer(q){const clean=q.toLowerCase().replaceAll(" ","");if(clean==="(8+4)/2")return "Resultado: 6";if(clean==="cuantoes4/5"||clean==="cuántoes4/5")return "Resultado: 0.8";if(clean==="5kmam")return "5 km = 5000 m";if(clean==="10mcm")return "10 m = 1000 cm";return "Puedo ayudarte sin clave API. Prueba con 5 km a m o (8 + 4) / 2."}form.addEventListener("submit",function(event){event.preventDefault();const q=input.value.trim();if(!q)return;show("Tú: "+q);show("Moon Light: "+answer(q));input.value=""})</script></body></html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Moon Light</title>
+  <style>
+    :root { --bg:#0b1020; --panel:#111827; --panel2:#1e293b; --text:#e5e7eb; --muted:#9ca3af; --accent:#7dd3fc; --border:#334155; --input:#0f172a; }
+    body.light { --bg:#eef4f7; --panel:#ffffff; --panel2:#e8f0f3; --text:#17212b; --muted:#5e6b75; --accent:#087ea4; --border:#c8d7df; --input:#f7fafb; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; font-family:Segoe UI,Arial,sans-serif; background:linear-gradient(180deg,var(--bg),var(--panel)); color:var(--text); transition:background .2s,color .2s; }
+    .wrap { max-width:900px; margin:32px auto; padding:16px; }
+    .card { overflow:hidden; background:var(--panel); border:1px solid var(--border); border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.18); }
+    header { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; padding:20px 24px; border-bottom:1px solid var(--border); }
+    h1 { margin:0; font-size:2rem; } h2 { margin:0 0 8px; font-size:1.05rem; }
+    .intro { margin:6px 0 0; color:var(--muted); line-height:1.5; }
+    .top-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+    .panel { margin:18px 24px 0; padding:16px; background:var(--panel2); border:1px solid var(--border); border-radius:12px; }
+    .panel p { margin:0 0 12px; color:var(--muted); line-height:1.45; }
+    .panel-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .panel[hidden] { display:none; }
+    .body { display:flex; flex-direction:column; min-height:520px; }
+    #chat { flex:1; overflow:auto; padding:20px 24px; display:flex; flex-direction:column; gap:8px; }
+    .msg { max-width:75%; padding:12px 14px; border-radius:14px; line-height:1.5; white-space:pre-wrap; }
+    .user { align-self:flex-end; background:var(--input); border:1px solid var(--border); }
+    .assistant { align-self:flex-start; background:var(--panel2); border:1px solid var(--border); }
+    .meta { color:var(--muted); font-size:.8rem; margin:0 4px 4px; }
+    form { display:grid; grid-template-columns:1fr auto; gap:10px; padding:18px 24px 22px; border-top:1px solid var(--border); }
+    input,textarea,button { font:inherit; border-radius:10px; }
+    input,textarea { width:100%; padding:12px 14px; background:var(--input); color:var(--text); border:1px solid var(--border); }
+    textarea { min-height:96px; resize:vertical; }
+    button { background:var(--accent); color:#08111a; border:0; font-weight:700; padding:12px 18px; cursor:pointer; }
+    button.secondary { background:transparent; color:var(--text); border:1px solid var(--border); }
+    .status { margin:10px 0 0; font-size:.9rem; color:var(--muted); }
+    button:disabled { opacity:.7; cursor:wait; }
+    @media (max-width:640px) { header { flex-direction:column; } .top-actions { justify-content:flex-start; } .panel-grid,form { grid-template-columns:1fr; } .msg { max-width:90%; } }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card">
+      <header>
+        <div><h1>Moon Light</h1><p class="intro">Tu tutor de IA para aprender, explorar ideas y resolver problemas paso a paso.</p></div>
+        <div class="top-actions"><button class="secondary" id="introButton" type="button">Conocer la IA</button><button class="secondary" id="commandsButton" type="button">Comandos</button></div>
+      </header>
+      <section class="panel" id="introPanel" hidden>
+        <h2>Una IA para aprender contigo</h2>
+        <p>Moon Light organiza explicaciones claras, propone métodos y puede guardar conocimientos que tú le compartas en este navegador. Sus filtros evitan aceptar contenido que promueva daño, odio, acoso o actividades ilegales.</p>
+      </section>
+      <section class="panel" id="commandsPanel" hidden>
+        <h2>Panel de comandos</h2>
+        <p>Personaliza la apariencia y consulta los comandos disponibles.</p>
+        <div class="panel-grid"><button id="themeButton" type="button">Cambiar a modo claro</button><button class="secondary" id="helpButton" type="button">Ver comandos</button></div>
+        <p class="status" id="commandStatus" aria-live="polite"></p>
+      </section>
+      <section class="panel" id="learningPanel">
+        <h2>Subir aprendizaje</h2>
+        <p>Comparte una nota o pega información útil para que Moon Light la tenga disponible durante esta sesión.</p>
+        <textarea id="learningText" placeholder="Escribe aquí un concepto, resumen o ejemplo..."></textarea>
+        <div class="panel-grid" style="margin-top:10px"><input id="learningFile" type="file" accept=".txt,.md,.csv,.json"><button id="learnButton" type="button">Añadir conocimiento</button></div>
+        <p class="status" id="learningStatus" aria-live="polite"></p>
+      </section>
+      <div class="body">
+        <div id="chat" aria-live="polite"></div>
+        <form id="form">
+          <input id="prompt" type="text" placeholder="Escribe tu pregunta..." aria-label="Pregunta" autocomplete="off">
+          <button id="send" type="submit">Enviar</button>
+        </form>
+      </div>
+    </section>
+  </main>
+  <script>
+    const chat = document.getElementById('chat');
+    const form = document.getElementById('form');
+    const prompt = document.getElementById('prompt');
+    const button = document.getElementById('send');
+    const introButton = document.getElementById('introButton');
+    const introPanel = document.getElementById('introPanel');
+    const commandsButton = document.getElementById('commandsButton');
+    const commandsPanel = document.getElementById('commandsPanel');
+    const themeButton = document.getElementById('themeButton');
+    const helpButton = document.getElementById('helpButton');
+    const commandStatus = document.getElementById('commandStatus');
+    const learningText = document.getElementById('learningText');
+    const learningFile = document.getElementById('learningFile');
+    const learnButton = document.getElementById('learnButton');
+    const learningStatus = document.getElementById('learningStatus');
+
+    const contenidoNoPermitido = /(extorsi[oó]n|racismo|terrorismo|explotaci[oó]n sexual|amenaza|odio hacia|fabricar explosivos|fraude)/i;
+    const conocimiento = [];
+
+    function addMessage(role, text) {
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = role === 'user' ? 'Tú' : 'Moon Light';
+      const message = document.createElement('div');
+      message.className = 'msg ' + role;
+      message.textContent = text;
+      chat.append(meta, message);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    const unidades = {
+      mm: ['longitud', 0.001], cm: ['longitud', 0.01], m: ['longitud', 1],
+      km: ['longitud', 1000], in: ['longitud', 0.0254], ft: ['longitud', 0.3048],
+      mg: ['masa', 0.001], g: ['masa', 1], kg: ['masa', 1000],
+      ml: ['volumen', 0.001], l: ['volumen', 1]
+    };
+
+    function numero(texto) {
+      return Number(texto.replace(',', '.'));
+    }
+
+    function convertirLocal(texto) {
+      const match = texto.toLowerCase().match(/(-?\d+(?:[.,]\d+)?)\s*([a-z]+)\s+(?:a|en|to|->)\s+([a-z]+)/i);
+      if (!match) return null;
+      const cantidad = numero(match[1]);
+      const origen = unidades[match[2]];
+      const destino = unidades[match[3]];
+      if (!Number.isFinite(cantidad) || !origen || !destino || origen[0] !== destino[0]) return null;
+      const resultado = cantidad * origen[1] / destino[1];
+      return `${cantidad} ${match[2]} = ${Number(resultado.toFixed(10))} ${match[3]}\n\nMétodo: multiplica por ${origen[1]} para pasar a la unidad base y divide por ${destino[1]} para obtener la unidad final.`;
+    }
+
+    function calcularLocal(texto) {
+      const expresion = texto.toLowerCase()
+        .replace(/(cu[aá]nto es|calcula|resuelve|resultado de|suma|multiplica|divide|resta)/g, '')
+        .replace(/[^0-9+\-*/().,\s]/g, '').replace(',', '.').trim();
+      if (!expresion || !/[+*/-]/.test(expresion) || !/^[0-9+*/().\s-]+$/.test(expresion)) return null;
+      const tokens = expresion.match(/\d+(?:\.\d+)?|[()+\-*/]/g) || [];
+      if (tokens.join('') !== expresion.replace(/\s/g, '')) return null;
+      const valores = [], operadores = [];
+      const precedencia = op => op === '+' || op === '-' ? 1 : 2;
+      const aplicar = () => {
+        const op = operadores.pop();
+        const b = valores.pop();
+        const a = valores.pop();
+        if (a === undefined || b === undefined || op === undefined) throw new Error();
+        if (op === '/' && b === 0) throw new Error();
+        valores.push(op === '+' ? a + b : op === '-' ? a - b : op === '*' ? a * b : a / b);
+      };
+      try {
+        for (const token of tokens) {
+          if (/^\d/.test(token)) valores.push(Number(token));
+          else if (token === '(') operadores.push(token);
+          else if (token === ')') {
+            while (operadores.at(-1) !== '(') aplicar();
+            operadores.pop();
+          } else {
+            while (operadores.length && operadores.at(-1) !== '(' && precedencia(operadores.at(-1)) >= precedencia(token)) aplicar();
+            operadores.push(token);
+          }
+        }
+        while (operadores.length) aplicar();
+        if (valores.length !== 1 || !Number.isFinite(valores[0])) return null;
+        return `Resultado: ${Number(valores[0].toFixed(10))}\n\nMétodo: respeté primero los paréntesis, después multiplicaciones y divisiones, y finalmente sumas y restas.`;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function responderLocal(pregunta) {
+      return convertirLocal(pregunta) || calcularLocal(pregunta) ||
+        `### Tutor local\n\nPuedo ayudarte sin clave API. Prueba con una conversión como «5 km a m» o un cálculo como «(8 + 4) / 2».\n\nPara una explicación más amplia, plantea la pregunta con el tema y lo que ya intentaste; te propongo un método paso a paso.`;
+    }
+
+    function actualizarTema() {
+      const claro = document.body.classList.toggle('light');
+      themeButton.textContent = claro ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro';
+      commandStatus.textContent = `Tema activo: ${claro ? 'claro' : 'oscuro'}.`;
+      localStorage.setItem('moonlight-theme', claro ? 'light' : 'dark');
+    }
+
+    introButton.addEventListener('click', () => { introPanel.hidden = !introPanel.hidden; });
+    commandsButton.addEventListener('click', () => { commandsPanel.hidden = !commandsPanel.hidden; });
+    themeButton.addEventListener('click', actualizarTema);
+    helpButton.addEventListener('click', () => { commandStatus.textContent = 'Comandos: “modo claro”, “modo oscuro”, “ayuda” y “aprender”.'; });
+    if (localStorage.getItem('moonlight-theme') === 'light') { document.body.classList.add('light'); themeButton.textContent = 'Cambiar a modo oscuro'; }
+
+    learnButton.addEventListener('click', () => {
+      const texto = learningText.value.trim();
+      if (!texto) { learningStatus.textContent = 'Escribe una nota antes de añadirla.'; return; }
+      if (contenidoNoPermitido.test(texto)) { learningStatus.textContent = 'No puedo guardar contenido que promueva daño, odio, amenazas o actividades ilegales.'; return; }
+      conocimiento.push(texto);
+      learningText.value = '';
+      learningStatus.textContent = `Conocimiento añadido: ${conocimiento.length} nota${conocimiento.length === 1 ? '' : 's'} disponible${conocimiento.length === 1 ? '' : 's'} en esta sesión.`;
+    });
+
+    learningFile.addEventListener('change', () => {
+      const archivo = learningFile.files[0];
+      if (!archivo) return;
+      if (archivo.size > 1024 * 1024) { learningStatus.textContent = 'El archivo no puede superar 1 MB.'; learningFile.value = ''; return; }
+      const lector = new FileReader();
+      lector.onload = () => { learningText.value = String(lector.result || ''); learningStatus.textContent = `Archivo “${archivo.name}” listo para revisar.`; };
+      lector.readAsText(archivo);
+    });
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const question = prompt.value.trim();
+      if (!question) return;
+      addMessage('user', question);
+      prompt.value = '';
+      button.disabled = true;
+      try {
+        addMessage('assistant', responderLocal(question));
+      } catch (error) {
+        addMessage('assistant', 'No pude procesar la pregunta. Prueba a escribir un cálculo o una conversión sencilla.');
+      } finally {
+        button.disabled = false;
+        prompt.focus();
+      }
+    });
+
+    addMessage('assistant', 'Hola. Puedes usar Moon Light directamente, sin clave API.');
+  </script>
+</body>
+</html>
