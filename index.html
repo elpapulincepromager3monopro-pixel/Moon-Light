@@ -1,218 +1,152 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Moon Light</title>
-  <style>
-    :root { --bg:#0b1020; --panel:#111827; --panel2:#1e293b; --text:#e5e7eb; --muted:#9ca3af; --accent:#7dd3fc; --border:#334155; --input:#0f172a; }
-    body.light { --bg:#eef4f7; --panel:#ffffff; --panel2:#e8f0f3; --text:#17212b; --muted:#5e6b75; --accent:#087ea4; --border:#c8d7df; --input:#f7fafb; }
-    * { box-sizing:border-box; }
-    body { margin:0; min-height:100vh; font-family:Segoe UI,Arial,sans-serif; background:linear-gradient(180deg,var(--bg),var(--panel)); color:var(--text); transition:background .2s,color .2s; }
-    .wrap { max-width:900px; margin:32px auto; padding:16px; }
-    .card { overflow:hidden; background:var(--panel); border:1px solid var(--border); border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.18); }
-    header { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; padding:20px 24px; border-bottom:1px solid var(--border); }
-    h1 { margin:0; font-size:2rem; } h2 { margin:0 0 8px; font-size:1.05rem; }
-    .intro { margin:6px 0 0; color:var(--muted); line-height:1.5; }
-    .top-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
-    .panel { margin:18px 24px 0; padding:16px; background:var(--panel2); border:1px solid var(--border); border-radius:12px; }
-    .panel p { margin:0 0 12px; color:var(--muted); line-height:1.45; }
-    .panel-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-    .panel[hidden] { display:none; }
-    .body { display:flex; flex-direction:column; min-height:520px; }
-    #chat { flex:1; overflow:auto; padding:20px 24px; display:flex; flex-direction:column; gap:8px; }
-    .msg { max-width:75%; padding:12px 14px; border-radius:14px; line-height:1.5; white-space:pre-wrap; }
-    .user { align-self:flex-end; background:var(--input); border:1px solid var(--border); }
-    .assistant { align-self:flex-start; background:var(--panel2); border:1px solid var(--border); }
-    .meta { color:var(--muted); font-size:.8rem; margin:0 4px 4px; }
-    form { display:grid; grid-template-columns:1fr auto; gap:10px; padding:18px 24px 22px; border-top:1px solid var(--border); }
-    input,textarea,button { font:inherit; border-radius:10px; }
-    input,textarea { width:100%; padding:12px 14px; background:var(--input); color:var(--text); border:1px solid var(--border); }
-    textarea { min-height:96px; resize:vertical; }
-    button { background:var(--accent); color:#08111a; border:0; font-weight:700; padding:12px 18px; cursor:pointer; }
-    button.secondary { background:transparent; color:var(--text); border:1px solid var(--border); }
-    .status { margin:10px 0 0; font-size:.9rem; color:var(--muted); }
-    button:disabled { opacity:.7; cursor:wait; }
-    @media (max-width:640px) { header { flex-direction:column; } .top-actions { justify-content:flex-start; } .panel-grid,form { grid-template-columns:1fr; } .msg { max-width:90%; } }
-  </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#050b14" />
+  <meta name="description" content="MOON LIGHT - Asistente personal: cámara, archivos, nube y todas las materias." />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <title>MOON LIGHT</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <main class="wrap">
-    <section class="card">
-      <header>
-        <div><h1>Moon Light</h1><p class="intro">Tu tutor de IA para aprender, explorar ideas y resolver problemas paso a paso.</p></div>
-        <div class="top-actions"><button class="secondary" id="introButton" type="button">Conocer la IA</button><button class="secondary" id="commandsButton" type="button">Comandos</button></div>
-      </header>
-      <section class="panel" id="introPanel" hidden>
-        <h2>Una IA para aprender contigo</h2>
-        <p>Moon Light organiza explicaciones claras, propone métodos y puede guardar conocimientos que tú le compartas en este navegador. Sus filtros evitan aceptar contenido que promueva daño, odio, acoso o actividades ilegales.</p>
-      </section>
-      <section class="panel" id="commandsPanel" hidden>
-        <h2>Panel de comandos</h2>
-        <p>Personaliza la apariencia y consulta los comandos disponibles.</p>
-        <div class="panel-grid"><button id="themeButton" type="button">Cambiar a modo claro</button><button class="secondary" id="helpButton" type="button">Ver comandos</button></div>
-        <p class="status" id="commandStatus" aria-live="polite"></p>
-      </section>
-      <section class="panel" id="learningPanel">
-        <h2>Subir aprendizaje</h2>
-        <p>Comparte una nota o pega información útil para que Moon Light la tenga disponible durante esta sesión.</p>
-        <textarea id="learningText" placeholder="Escribe aquí un concepto, resumen o ejemplo..."></textarea>
-        <div class="panel-grid" style="margin-top:10px"><input id="learningFile" type="file" accept=".txt,.md,.csv,.json"><button id="learnButton" type="button">Añadir conocimiento</button></div>
-        <p class="status" id="learningStatus" aria-live="polite"></p>
-      </section>
-      <div class="body">
-        <div id="chat" aria-live="polite"></div>
-        <form id="form">
-          <input id="prompt" type="text" placeholder="Escribe tu pregunta..." aria-label="Pregunta" autocomplete="off">
-          <button id="send" type="submit">Enviar</button>
-        </form>
+  <div class="grid-bg"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="arc" id="arcReactor"><div class="arcCore"></div></div>
+      <div class="brandText">
+        <h1>MOON LIGHT</h1>
+        <p class="tagline">Tu asistente con visión, archivos y nube</p>
+      </div>
+    </div>
+    <div class="status">
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText">INICIALIZANDO</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- CHAT -->
+    <section class="panel chatPanel">
+      <div class="orb" aria-hidden="true">
+        <div class="core"></div>
+        <div class="ring r1"></div>
+        <div class="ring r2"></div>
+        <div class="ring r3"></div>
+        <div class="ringSmall"></div>
+      </div>
+      <div class="panelHead">
+        <h2>CONSOLA</h2>
+        <button class="ghost" id="btnClear">Limpiar</button>
+      </div>
+      <div class="chat" id="chat"></div>
+      <div class="composer">
+        <textarea id="input" rows="1" placeholder="Habla con MOON LIGHT..." ></textarea>
+        <button class="primary" id="btnMic" title="Comando de voz">🎤</button>
+        <button class="primary" id="btnSend">ENVIAR</button>
       </div>
     </section>
+
+    <!-- SIDE PANELS -->
+    <aside class="sideCol">
+      <section class="panel camPanel">
+        <div class="panelHead">
+          <h2>VISIÓN</h2>
+          <button class="ghost" id="btnCam">Activar</button>
+        </div>
+        <div class="camWrap">
+          <video id="video" autoplay playsinline muted></video>
+          <canvas id="overlay" class="overlay"></canvas>
+          <div class="camHud" id="camHud">
+            <div class="ring"></div>
+            <span id="camStatus">CÁMARA APAGADA</span>
+          </div>
+        </div>
+        <div class="rowBtns">
+          <button class="ghost" id="btnShot" disabled>📸 Capturar</button>
+          <button class="ghost" id="btnMotion">Detectar movimiento</button>
+        </div>
+      </section>
+
+      <section class="panel filePanel">
+        <div class="panelHead">
+          <h2>ARCHIVOS</h2>
+          <button class="ghost" id="btnFolder">Abrir carpeta</button>
+        </div>
+        <div id="fileHint" class="hint">Elige una carpeta para que MOON LIGHT la gestione. Todo se queda en tu PC: solo trabaja dentro de la carpeta que elijas.</div>
+        <div class="fileList" id="fileList"></div>
+        <input list="fileTargets" id="fileName" placeholder="docs/nuevo.txt" />
+        <datalist id="fileTargets"></datalist>
+        <div class="rowBtns">
+          <button class="primary" id="btnNewFile">Crear</button>
+          <button class="ghost" id="btnSaveFile">Guardar</button>
+          <button class="danger" id="btnDeleteFile">Borrar</button>
+        </div>
+      </section>
+
+      <section class="panel cloudPanel">
+        <div class="panelHead">
+          <h2>NUBE / CEREBRO</h2>
+          <button class="ghost" id="btnApi">Configurar</button>
+        </div>
+        <div class="hint" id="apiState">Sin API: modo LOCAL (enciclopedia).<br/>Configura una API para potenciarlo.</div>
+        <div class="cloudStats">
+          <div><span id="statMode">LOCAL</span><small>motor</small></div>
+          <div><span id="statUptime">--:--</span><small>uptime</small></div>
+          <div><span id="statMsgs">0</span><small>mensajes</small></div>
+        </div>
+      </section>
+    </aside>
   </main>
-  <script>
-    const chat = document.getElementById('chat');
-    const form = document.getElementById('form');
-    const prompt = document.getElementById('prompt');
-    const button = document.getElementById('send');
-    const introButton = document.getElementById('introButton');
-    const introPanel = document.getElementById('introPanel');
-    const commandsButton = document.getElementById('commandsButton');
-    const commandsPanel = document.getElementById('commandsPanel');
-    const themeButton = document.getElementById('themeButton');
-    const helpButton = document.getElementById('helpButton');
-    const commandStatus = document.getElementById('commandStatus');
-    const learningText = document.getElementById('learningText');
-    const learningFile = document.getElementById('learningFile');
-    const learnButton = document.getElementById('learnButton');
-    const learningStatus = document.getElementById('learningStatus');
 
-    const contenidoNoPermitido = /(extorsi[oó]n|racismo|terrorismo|explotaci[oó]n sexual|amenaza|odio hacia|fabricar explosivos|fraude)/i;
-    const conocimiento = [];
+  <!-- Editor de archivo -->
+  <div class="modal hidden" id="editorModal">
+    <div class="modalBox">
+      <div class="panelHead">
+        <h2 id="editorTitle">EDITOR</h2>
+        <div class="rowBtns">
+          <button class="ghost" id="btnAutoImprove">✨ Mejorar con IA</button>
+          <button class="danger" id="btnCloseEditor">Cerrar</button>
+        </div>
+      </div>
+      <textarea id="editor" spellcheck="false" placeholder="Contenido del archivo..."></textarea>
+    </div>
+  </div>
 
-    function addMessage(role, text) {
-      const meta = document.createElement('div');
-      meta.className = 'meta';
-      meta.textContent = role === 'user' ? 'Tú' : 'Moon Light';
-      const message = document.createElement('div');
-      message.className = 'msg ' + role;
-      message.textContent = text;
-      chat.append(meta, message);
-      chat.scrollTop = chat.scrollHeight;
-    }
+  <!-- Configuración API -->
+  <div class="modal hidden" id="apiModal">
+    <div class="modalBox">
+      <div class="panelHead"><h2>CONFIGURAR CEREBRO</h2><button class="danger" id="btnCloseApi">Cerrar</button></div>
+      <label>Proveedor (URL base OpenAI-compatible)
+        <select id="apiProvider">
+          <option value="">-- Selecciona --</option>
+          <option value="https://integrate.api.nvidia.com/v1">NVIDIA NIM</option>
+          <option value="https://openrouter.ai/api/v1">OpenRouter</option>
+          <option value="https://api.openai.com/v1">OpenAI</option>
+          <option value="custom">Personalizado</option>
+        </select>
+      </label>
+      <label id="customWrap" class="hidden">URL base propia
+        <input id="apiBase" placeholder="https://mi-servidor:8000/v1" />
+      </label>
+      <label>Modelo
+        <input id="apiModel" placeholder="p.ej. nvidia/nemotron-3-ultra-550b-a55b" />
+      </label>
+      <label>Clave API
+        <input id="apiKey" type="password" placeholder="sk-..." />
+      </label>
+      <div class="rowBtns">
+        <button class="primary" id="btnSaveApi">Guardar</button>
+        <button class="ghost" id="btnTestApi">Probar conexión</button>
+        <button class="ghost" id="btnClearApi">Usar modo local</button>
+      </div>
+      <div class="hint">La clave se guarda solo en tu navegador. Sin clave, MOON LIGHT usa su cerebro local.</div>
+    </div>
+  </div>
 
-    const unidades = {
-      mm: ['longitud', 0.001], cm: ['longitud', 0.01], m: ['longitud', 1],
-      km: ['longitud', 1000], in: ['longitud', 0.0254], ft: ['longitud', 0.3048],
-      mg: ['masa', 0.001], g: ['masa', 1], kg: ['masa', 1000],
-      ml: ['volumen', 0.001], l: ['volumen', 1]
-    };
-
-    function numero(texto) {
-      return Number(texto.replace(',', '.'));
-    }
-
-    function convertirLocal(texto) {
-      const match = texto.toLowerCase().match(/(-?\d+(?:[.,]\d+)?)\s*([a-z]+)\s+(?:a|en|to|->)\s+([a-z]+)/i);
-      if (!match) return null;
-      const cantidad = numero(match[1]);
-      const origen = unidades[match[2]];
-      const destino = unidades[match[3]];
-      if (!Number.isFinite(cantidad) || !origen || !destino || origen[0] !== destino[0]) return null;
-      const resultado = cantidad * origen[1] / destino[1];
-      return `${cantidad} ${match[2]} = ${Number(resultado.toFixed(10))} ${match[3]}\n\nMétodo: multiplica por ${origen[1]} para pasar a la unidad base y divide por ${destino[1]} para obtener la unidad final.`;
-    }
-
-    function calcularLocal(texto) {
-      const expresion = texto.toLowerCase()
-        .replace(/(cu[aá]nto es|calcula|resuelve|resultado de|suma|multiplica|divide|resta)/g, '')
-        .replace(/[^0-9+\-*/().,\s]/g, '').replace(',', '.').trim();
-      if (!expresion || !/[+*/-]/.test(expresion) || !/^[0-9+*/().\s-]+$/.test(expresion)) return null;
-      const tokens = expresion.match(/\d+(?:\.\d+)?|[()+\-*/]/g) || [];
-      if (tokens.join('') !== expresion.replace(/\s/g, '')) return null;
-      const valores = [], operadores = [];
-      const precedencia = op => op === '+' || op === '-' ? 1 : 2;
-      const aplicar = () => {
-        const op = operadores.pop();
-        const b = valores.pop();
-        const a = valores.pop();
-        if (a === undefined || b === undefined || op === undefined) throw new Error();
-        if (op === '/' && b === 0) throw new Error();
-        valores.push(op === '+' ? a + b : op === '-' ? a - b : op === '*' ? a * b : a / b);
-      };
-      try {
-        for (const token of tokens) {
-          if (/^\d/.test(token)) valores.push(Number(token));
-          else if (token === '(') operadores.push(token);
-          else if (token === ')') {
-            while (operadores.at(-1) !== '(') aplicar();
-            operadores.pop();
-          } else {
-            while (operadores.length && operadores.at(-1) !== '(' && precedencia(operadores.at(-1)) >= precedencia(token)) aplicar();
-            operadores.push(token);
-          }
-        }
-        while (operadores.length) aplicar();
-        if (valores.length !== 1 || !Number.isFinite(valores[0])) return null;
-        return `Resultado: ${Number(valores[0].toFixed(10))}\n\nMétodo: respeté primero los paréntesis, después multiplicaciones y divisiones, y finalmente sumas y restas.`;
-      } catch (_) {
-        return null;
-      }
-    }
-
-    function responderLocal(pregunta) {
-      return convertirLocal(pregunta) || calcularLocal(pregunta) ||
-        `### Tutor local\n\nPuedo ayudarte sin clave API. Prueba con una conversión como «5 km a m» o un cálculo como «(8 + 4) / 2».\n\nPara una explicación más amplia, plantea la pregunta con el tema y lo que ya intentaste; te propongo un método paso a paso.`;
-    }
-
-    function actualizarTema() {
-      const claro = document.body.classList.toggle('light');
-      themeButton.textContent = claro ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro';
-      commandStatus.textContent = `Tema activo: ${claro ? 'claro' : 'oscuro'}.`;
-      localStorage.setItem('moonlight-theme', claro ? 'light' : 'dark');
-    }
-
-    introButton.addEventListener('click', () => { introPanel.hidden = !introPanel.hidden; });
-    commandsButton.addEventListener('click', () => { commandsPanel.hidden = !commandsPanel.hidden; });
-    themeButton.addEventListener('click', actualizarTema);
-    helpButton.addEventListener('click', () => { commandStatus.textContent = 'Comandos: “modo claro”, “modo oscuro”, “ayuda” y “aprender”.'; });
-    if (localStorage.getItem('moonlight-theme') === 'light') { document.body.classList.add('light'); themeButton.textContent = 'Cambiar a modo oscuro'; }
-
-    learnButton.addEventListener('click', () => {
-      const texto = learningText.value.trim();
-      if (!texto) { learningStatus.textContent = 'Escribe una nota antes de añadirla.'; return; }
-      if (contenidoNoPermitido.test(texto)) { learningStatus.textContent = 'No puedo guardar contenido que promueva daño, odio, amenazas o actividades ilegales.'; return; }
-      conocimiento.push(texto);
-      learningText.value = '';
-      learningStatus.textContent = `Conocimiento añadido: ${conocimiento.length} nota${conocimiento.length === 1 ? '' : 's'} disponible${conocimiento.length === 1 ? '' : 's'} en esta sesión.`;
-    });
-
-    learningFile.addEventListener('change', () => {
-      const archivo = learningFile.files[0];
-      if (!archivo) return;
-      if (archivo.size > 1024 * 1024) { learningStatus.textContent = 'El archivo no puede superar 1 MB.'; learningFile.value = ''; return; }
-      const lector = new FileReader();
-      lector.onload = () => { learningText.value = String(lector.result || ''); learningStatus.textContent = `Archivo “${archivo.name}” listo para revisar.`; };
-      lector.readAsText(archivo);
-    });
-
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const question = prompt.value.trim();
-      if (!question) return;
-      addMessage('user', question);
-      prompt.value = '';
-      button.disabled = true;
-      try {
-        addMessage('assistant', responderLocal(question));
-      } catch (error) {
-        addMessage('assistant', 'No pude procesar la pregunta. Prueba a escribir un cálculo o una conversión sencilla.');
-      } finally {
-        button.disabled = false;
-        prompt.focus();
-      }
-    });
-
-    addMessage('assistant', 'Hola. Puedes usar Moon Light directamente, sin clave API.');
-  </script>
+  <script src="app.js"></script>
 </body>
 </html>
