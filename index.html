@@ -67,7 +67,7 @@
         </div>
         <div class="rowBtns">
           <button class="ghost" id="btnShot" disabled>📸 Capturar</button>
-          <button class="ghost" id="btnMotion">Detectar movimiento</button>
+          <button class="ghost" id="btnMotion">Interactuar con mov.</button>
         </div>
       </section>
 
@@ -92,7 +92,17 @@
           <h2>NUBE / CEREBRO</h2>
           <button class="ghost" id="btnApi">Configurar</button>
         </div>
-        <div class="hint" id="apiState">Sin API: modo LOCAL (enciclopedia).<br/>Configura una API para potenciarlo.</div>
+        <div class="hint" id="apiState">Modo sin clave listo: usa la IA en tu navegador o configura una API.</div>
+        <div class="rowBtns">
+          <button class="primary" id="btnLocalBrain">🧠 Cargar IA sin clave</button>
+        </div>
+        <label>Modelo local
+          <select id="modelPick">
+            <option value="Qwen2.5-0.5B-Instruct-q4f16_1-MLC">Ligero (0.5B · ~500MB)</option>
+            <option value="Qwen2.5-1.5B-Instruct-q4f16_1-MLC" selected>Básico (1.5B · ~1.2GB)</option>
+          </select>
+        </label>
+        <div class="hint" id="localBrainText">La IA sin clave se descarga una sola vez y corre 100% en tu navegador (privada, sin servidores). Requiere Chrome con WebGPU.</div>
         <div class="cloudStats">
           <div><span id="statMode">LOCAL</span><small>motor</small></div>
           <div><span id="statUptime">--:--</span><small>uptime</small></div>

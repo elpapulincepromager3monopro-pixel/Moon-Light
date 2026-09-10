@@ -95,7 +95,7 @@
     if (w) return w;
 
     if (/(hola|buenas|hey|saludos)/.test(q) && state.msgCount <= 1)
-      return "Buenas. MOON LIGHT a tu servicio. Estoy en modo LOCAL: uso mi enciclopedia integrada. Actívalo al máximo configurando una API en el panel NUBE/CEREBRO.";
+      return "Buenas. MOON LIGHT a tu servicio. Estoy con mi nube gratuita conectada; si no tienes señal vuelo con mi cerebro local (matemáticas, hora y enciclopedia).";
 
     const math = evalMath(qRaw);
     if (math !== null) return `El resultado es: ${String(math).replace(".", ",")}.`;
@@ -103,30 +103,106 @@
     const wiki = await wikiSummary(qRaw.replace(/^(que es|qué es|que significa|qué significa|explícame|explica|dime|resume)\s+/i, ""));
     if (wiki) return wiki;
 
-    return "No estoy conectado a un cerebro potente todavía. Configura una API (NVIDIA NIM, OpenRouter u OpenAI) en el panel NUBE/CEREBRO y respondo a cualquier materia con total dominio. Por ahora puedo: matemáticas, hora/fecha y búsquedas enciclopédicas.";
+    return "No tengo señal hacia la nube en este momento. Revisa tu conexión a internet. Por ahora puedo: matemáticas, hora/fecha y búsquedas enciclopédicas.";
   }
 
-  // ---------- Motor de IA (API o local) ----------
+  // ---------- Motor de IA (tu API opcional → IA en tu navegador sin clave → cerebro local) ----------
   function getConfig() {
     try { return JSON.parse(localStorage.getItem("jarvis.api") || "null"); }
     catch { return null; }
   }
-  async function callAI(history) {
+  function brainMode() {
     const cfg = getConfig();
-    if (!cfg || !cfg.key || !cfg.base || !cfg.model) return null;
+    return (cfg && cfg.key && cfg.base && cfg.model) ? "api" : "local";
+  }
+
+  async function fetchWithTimeout(url, opts, ms = 30000) {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), ms);
+    try { return await fetch(url, { ...opts, signal: ctl.signal }); }
+    finally { clearTimeout(t); }
+  }
+
+  // Tu API (opcional, si configuraste clave)
+  async function callConfigured(history) {
+    const cfg = getConfig();
     const body = { model: cfg.model, messages: history, temperature: 0.6, max_tokens: 2048 };
-    try {
-      const r = await fetch(cfg.base.replace(/\/$/, "") + "/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.key}` },
-        body: JSON.stringify(body)
-      });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const j = await r.json();
-      return j.choices?.[0]?.message?.content || null;
-    } catch (e) {
-      throw new Error("No pude conectar con la API (" + e.message + ").");
+    const res = await fetchWithTimeout(cfg.base.replace(/\/$/, "") + "/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.key}` },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const j = await res.json();
+    return j.choices?.[0]?.message?.content || null;
+  }
+
+  // ---- IA en el navegador (WebLLM): potente y SIN clave, 100% privada ----
+  const engineState = { ready: false, loading: false, engine: null };
+  const LOCAL_MODELS = {
+    "Qwen2.5-0.5B-Instruct-q4f16_1-MLC": "Ligero (~500MB)",
+    "Qwen2.5-1.5B-Instruct-q4f16_1-MLC": "Básico (~1.2GB)"
+  };
+  function selectedLocalModel() {
+    const m = localStorage.getItem("jarvis.localmodel");
+    return LOCAL_MODELS[m] ? m : "Qwen2.5-1.5B-Instruct-q4f16_1-MLC";
+  }
+  async function webllmChat(history) {
+    if (!engineState.ready || !engineState.engine) return null;
+    const res = await engineState.engine.chat.completions.create({ messages: history });
+    const content = res?.choices?.[0]?.message?.content;
+    return (content && content.trim()) ? content.trim() : null;
+  }
+  async function loadBrowserBrain(auto) {
+    if (engineState.ready || engineState.loading) return true;
+    if (!(navigator.gpu && navigator.gpu.requestAdapter)) {
+      setStatus("EN LÍNEA (sin WebGPU)");
+      $("localBrainText").textContent = "Tu navegador/PC no soporta WebGPU. Usa Chrome reciente o configura una API.";
+      return false;
     }
+    engineState.loading = true;
+    const model = selectedLocalModel();
+    const btn = $("btnLocalBrain");
+    if (btn) btn.disabled = true;
+    $("localBrainText").textContent = "Descargando IA a tu navegador… (la primera vez tarda)";
+    try {
+      const webllm = await import("https://esm.run/@mlc-ai/web-llm");
+      engineState.engine = await webllm.CreateMLCEngine(model, {
+        initProgressCallback: (report) => {
+          const pct = Math.round((report.progress || 0) * 100);
+          $("localBrainText").textContent = `${auto ? "Preparando IA local…" : "Cargando IA local…"} ${pct}% (${report.text || ""})`;
+          if (pct >= 100) $("localBrainText").textContent = "IA local lista ✓ sin clave, 100% privada";
+        }
+      });
+      engineState.ready = true;
+      engineState.loading = false;
+      $("localBrainText").textContent = "IA local lista ✓ sin clave, 100% privada";
+      setStatus("CEREBRO LOCAL LISTO");
+      moonSay("🧠 Mi cerebro sin clave está listo (corre aquí en tu navegador). Ya respondo todo de forma privada y no necesitas nada más.");
+      return true;
+    } catch (e) {
+      engineState.loading = false;
+      $("localBrainText").textContent = "No pude cargar la IA local (" + e.message + ").";
+      setStatus("EN LÍNEA");
+      if (btn) btn.disabled = false;
+      return false;
+    }
+  }
+
+  async function callAI(history) {
+    if (brainMode() === "api") {
+      try { return await callConfigured(history); }
+      catch (e) {
+        moonSay("⚠️ Tu API no respondió (" + esc(e.message) + "). Uso mi cerebro local.");
+        const ok = await loadBrowserBrain(true);
+        if (ok) { try { return await webllmChat(history); } catch {} }
+        return null;
+      }
+    }
+    if (engineState.ready) {
+      try { const r = await webllmChat(history); if (r) return r; } catch {}
+    }
+    return null; // cerebro local (offline)
   }
 
   const history = [
@@ -192,10 +268,15 @@
     try { rec.start(); } catch {}
   });
 
-  // ---------- Cámara ----------
-  let camStream = null, motionAllowed = false, lastFrame = null;
+  // ---------- Cámara (detecta Y interactúa con tu movimiento) ----------
+  let camStream = null, motionAllowed = true, lastFrame = null, firstLook = true;
+  let moveStart = 0, resting = true, camTrackStarted = false;
+  let lastGestureAt = 0;
+  const GESTURE_COOLDOWN = 7000;
   const ctx = overlay.getContext("2d");
   const motionBtn = $("btnMotion"), shotBtn = $("btnShot");
+
+  function camIdle() { return state.camOn ? "OBSERVANDO · muévete frente a la cámara para interactuar 👋" : "CÁMARA APAGADA"; }
 
   async function toggleCam() {
     if (state.camOn) {
@@ -205,7 +286,8 @@
       state.camOn = false;
       camStatus.textContent = "CÁMARA APAGADA";
       $("btnCam").textContent = "Activar";
-      motionBtn.disabled = true; shotBtn.disabled = true;
+      shotBtn.disabled = true;
+      firstLook = true;
       setStatus("EN LÍNEA");
       return;
     }
@@ -213,12 +295,13 @@
       camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       video.srcObject = camStream;
       state.camOn = true;
-      camStatus.textContent = "CÁMARA ACTIVA";
+      camStatus.textContent = camIdle();
       $("btnCam").textContent = "Desactivar";
-      motionBtn.disabled = false; shotBtn.disabled = false;
-      overlay.width = video.videoWidth || 320;
-      overlay.height = video.videoHeight || 240;
+      motionBtn.disabled = false;
+      motionBtn.classList.add("primary");
+      shotBtn.disabled = false;
       setStatus("VISIÓN ACTIVA");
+      if (!camTrackStarted) { camTrackStarted = true; requestAnimationFrame(detectMotion); }
     } catch (e) {
       alert("No pude acceder a la cámara: " + e.message);
     }
@@ -235,46 +318,61 @@
     img.src = snap.toDataURL("image/jpeg", 0.8);
     addMsg("user", img);
     setStatus("ANALIZANDO IMAGEN");
-    setTimeout(() => {
-      moonSay("Imagen capturada. En modo LOCAL no puedo analizar imágenes; con una API potente (ej. NVIDIA NIM con vision) sí. ¿Quieres que la guarde?");
-      setStatus(state.camOn ? "VISIÓN ACTIVA" : "EN LÍNEA");
-    }, 900);
+    moonSay("Imagen capturada. 📸 Con mi nube gratuita puedo leer lo que aparece en fotos si el modelo lo soporta; pruébala junto con un mensaje.");
+    setStatus(state.camOn ? "VISIÓN ACTIVA" : "EN LÍNEA");
   });
 
-  // Movimiento → "manipular" con la cámara
-  let motionCount = 0;
+  // Reacciona a un gesto con la mano usando el cerebro
+  function onGesture(desc) {
+    if (!motionAllowed) return setStatus("VISIÓN ACTIVA");
+    if (Date.now() - lastGestureAt < GESTURE_COOLDOWN) return;
+    lastGestureAt = Date.now();
+    addMsg("moon", "👁 Detecté: <b>" + esc(desc) + "</b>");
+    if (state.busy) return;
+    answer("Acabo de detectar con mi cámara que el usuario hizo: " + desc + ". Respóndele con naturalidad, breve, en español, como un asistente observador, ingenioso y servicial.");
+  }
+
   function detectMotion() {
-    if (!state.camOn || !motionAllowed || video.readyState < 2) return requestAnimationFrame(detectMotion);
+    if (!state.camOn || video.readyState < 2) return requestAnimationFrame(detectMotion);
     ctx.drawImage(video, 0, 0, overlay.width, overlay.height);
     const cur = ctx.getImageData(0, 0, overlay.width, overlay.height);
-    if (!lastFrame) { lastFrame = cur; return requestAnimationFrame(detectMotion); }
+    if (!lastFrame || firstLook) { lastFrame = cur; firstLook = false; return requestAnimationFrame(detectMotion); }
     let diff = 0;
     const d = cur.data, p = lastFrame.data;
-    for (let i = 0; i < d.length; i += 40) {
+    for (let i = 0; i < d.length; i += 32) {
       diff += Math.abs(d[i] - p[i]) + Math.abs(d[i + 1] - p[i + 1]) + Math.abs(d[i + 2] - p[i + 2]);
     }
     lastFrame = cur;
-    const score = diff / (d.length / 40);
-    const moving = score > 28;
-    // HUD
+    const score = diff / (d.length / 32);
+    const moving = score > 18;
+    const now = Date.now();
+
+    if (moving) {
+      if (resting) { moveStart = now; resting = false; }
+      const dur = now - moveStart;
+      camStatus.textContent = dur > 2500 ? "MOVIMIENTO PROLONGADO 😮" : "MOVIMIENTO DETECTADO…";
+    } else {
+      if (!resting) {
+        const dur = now - moveStart;
+        resting = true;
+        if (dur > 400 && dur <= 2600) {
+          onGesture(dur < 1400 ? "un movimiento rápido de la mano (saludo/onda) 🙋" : "un gesto sostenido con la mano ✋");
+        }
+      }
+      camStatus.textContent = camIdle();
+    }
+
     ctx.clearRect(0, 0, overlay.width, overlay.height);
-    ctx.strokeStyle = moving ? "rgba(255,51,85,0.8)" : "rgba(0,229,255,0.35)";
+    ctx.strokeStyle = moving ? "rgba(255,215,0,0.95)" : "rgba(255,215,0,0.4)";
     ctx.lineWidth = 2;
     ctx.strokeRect(4, 4, overlay.width - 8, overlay.height - 8);
-    if (moving) ctx.strokeRect(14, 14, overlay.width - 28, overlay.height - 28);
-    if (moving) {
-      camStatus.textContent = "MOVIMIENTO DETECTADO";
-      motionCount++;
-      if (motionCount === 5) { addMsg("moon", "He detectado tu movimiento en cámara. Estoy observando. 👁"); motionCount = 0; }
-    } else {
-      camStatus.textContent = "CÁMARA ACTIVA · VIGILANDO";
-    }
+    if (moving) { ctx.strokeStyle = "rgba(255,51,85,0.85)"; ctx.strokeRect(14, 14, overlay.width - 28, overlay.height - 28); }
     requestAnimationFrame(detectMotion);
   }
   motionBtn.addEventListener("click", () => {
     motionAllowed = !motionAllowed;
     motionBtn.classList.toggle("primary", motionAllowed);
-    camStatus.textContent = motionAllowed ? "VIGILANCIA ACTIVA" : "CÁMARA ACTIVA";
+    camStatus.textContent = motionAllowed ? camIdle() : "Interacción por movimiento DESACTIVADA";
   });
 
   // ---------- Gestor de archivos (solo carpeta elegida) ----------
@@ -449,13 +547,25 @@
   function updateApiState() {
     const cfg = getConfig();
     if (cfg && cfg.key && cfg.model) {
-      apiState.innerHTML = `🌐 Motor: <b>${esc(cfg.model)}</b><br/>Conectado a la nube.`;
-      $("statMode").textContent = "NUBE";
+      apiState.innerHTML = `🌐 Motor: <b>${esc(cfg.model)}</b><br/>Con tu clave personal.`;
+      $("statMode").textContent = "API";
+    } else if (engineState.ready) {
+      apiState.innerHTML = "🧠 IA local lista: sin clave, privada y sin internet.";
+      $("statMode").textContent = "LOCAL IA";
     } else {
-      apiState.innerHTML = "Sin API: modo LOCAL (enciclopedia).<br/>Configura una API para potenciarlo.";
-      $("statMode").textContent = "LOCAL";
+      apiState.innerHTML = "🧠 Sin clave: puedo cargar una IA en tu navegador (botón de arriba) o configurar una API.";
+      $("statMode").textContent = "SIN CLAVE";
     }
   }
+  $("btnLocalBrain").addEventListener("click", () => loadBrowserBrain(false));
+  $("modelPick").addEventListener("change", () => {
+    localStorage.setItem("jarvis.localmodel", $("modelPick").value);
+    if (engineState.ready) {
+      engineState.ready = false; engineState.loading = false; engineState.engine = null;
+      alert("Modelo cambiado. Pulsa «Cargar IA sin clave» para descargarlo.");
+      updateApiState();
+    }
+  });
   $("btnSaveApi").addEventListener("click", () => {
     const base = provider.value === "custom" ? baseI.value.trim() : provider.value;
     if (!base || !modelI.value.trim()) { alert("Completa la URL y el modelo."); return; }
@@ -500,6 +610,14 @@
 
   // ---------- Inicio ----------
   updateApiState();
-  moonSay("Bienvenido a MOON LIGHT. Sistemas operativos al 100%. 🔵\n\n· <b>HÁBIL</b> en todas las materias (configura la NUBE para total dominio).\n· Control por <b>cámara</b> (visor + detección de movimiento) y por <b>voz</b> 🎤.\n· <b>Archivos</b>: crear, editar, mejorar y borrar dentro de la carpeta que elijas.");
+  moonSay("Bienvenido a MOON LIGHT. Sistemas operativos al 100%. 🔵\n\n· <b>HÁBIL</b>: sin claves ni registro. Pulsa «Cargar IA sin clave» (o espérame ~30s y la preparo yo) y respondo todo, en privado.\n· <b>Cámara</b> 🎥: actívala y muévete con la mano → interactúo contigo. También hay voz 🎤.\n· <b>Archivos</b> 📁: crear, editar, mejorar y borrar dentro de la carpeta que elijas.");
   setStatus("EN LÍNEA");
+  // Arranca la IA sin clave en segundo plano (si tu PC lo soporta y no usas API)
+  if (brainMode() !== "api" && navigator.gpu && navigator.gpu.requestAdapter) {
+    setTimeout(() => { $("localBrainText").textContent = "Preparando la IA local… (descarga única)"; loadBrowserBrain(true); }, 1500);
+  } else if (brainMode() !== "api") {
+    setTimeout(() => {
+      $("localBrainText").textContent = "Tu navegador no detecta WebGPU (usa Chrome reciente). Resuelvo con cerebro local mientras tanto.";
+    }, 1500);
+  }
 })();

@@ -17,6 +17,8 @@ self.addEventListener("activate", (e) => {
 // Así los cambios al diseño se ven al recargar, sin caché vieja.
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
+  // Solo gestiona recursos del mismo sitio (la IA local se descarga de otro dominio y no debe cachearse aquí)
+  if (!e.request.url.startsWith(self.location.origin)) return;
   e.respondWith(
     fetch(e.request)
       .then((res) => {
