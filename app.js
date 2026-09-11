@@ -79,8 +79,21 @@
       const r2 = await fetch(`https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(hit.title)}`);
       const s = await r2.json();
       if (!s.extract) return null;
-      return `📘 *Wikipedia — ${s.title}*\n\n${s.extract.slice(0, 900)}${s.extract.length > 900 ? "…" : ""}\n\nFuente: ${s.content_urls?.desktop?.page || ""}`;
+      return `**${s.title}**\n\n${s.extract.slice(0, 700)}${s.extract.length > 700 ? "…" : ""}\n\nFuente: ${s.content_urls?.desktop?.page || ""}`;
     } catch { return null; }
+  }
+
+  const KB = [
+    { t: /(qué es|defini)\w*\s+(la )?(ia|inteligencia artificial)/, r: "La IA es la capacidad de las máquinas para aprender de datos y hacer cosas que requieren «inteligencia» humana: entender lenguaje, imágenes y tomar decisiones. Y yo, MOON LIGHT, soy un ejemplo de ello. 🌙" },
+    { t: /cómo (funci|funcion)\w* (la )?ia/, r: "Una IA aprende mirando muchísimos ejemplos (datos) y ajusta sus conexiones internas hasta reconocer patrones. Después aplica eso a lo nuevo que le preguntas. Por eso te contesto de verdad, no de memoria." },
+    { t: /quién (eres|eres tú|qué eres)/, r: "Soy MOON LIGHT, tu asistente personal con HUD estilo JARVIS. Respondo con IA real (sin clave en este modo), veo por cámara, escucho por voz y gestiono tus archivos." },
+    { t: /qué puedes (hacer|hacer tú)/, r: "Respondo cualquier pregunta, resuelvo matemáticas, te informo de la hora/fecha, veo movimientos por cámara 🎥, escucho tu voz 🎤 y creo/edito/borro archivos 📁 en la carpeta que elijas." },
+    { t: /(chiste|broma|algo gracioso)/, r: "¿Por qué la IA no va a la playa? Porque le da miedo la red neuronal… ¡perdón, eran bytes de más! 😄" },
+    { t: /(gracias|te amo|te quiero)/, r: "¡A ti! Por eso cierro con un guiño dorado: estoy para ayudarte." }
+  ];
+  function ownAnswer(q) {
+    for (const item of KB) if (item.t.test(q)) return item.r;
+    return null;
   }
 
   async function localBrain(qRaw) {
@@ -94,16 +107,19 @@
     const w = await when();
     if (w) return w;
 
-    if (/(hola|buenas|hey|saludos)/.test(q) && state.msgCount <= 1)
-      return "Buenas. MOON LIGHT a tu servicio. Estoy con mi nube gratuita conectada; si no tienes señal vuelo con mi cerebro local (matemáticas, hora y enciclopedia).";
+    if (state.msgCount <= 1 && /(hola|buenas|hey|saludos)/.test(q))
+      return "Buenas. MOON LIGHT a tu servicio. Estoy respondiendo con mi nube gratuita sin clave; si se cae, uso IA en tu navegador o mi enciclopedia local.";
 
     const math = evalMath(qRaw);
     if (math !== null) return `El resultado es: ${String(math).replace(".", ",")}.`;
 
-    const wiki = await wikiSummary(qRaw.replace(/^(que es|qué es|que significa|qué significa|explícame|explica|dime|resume)\s+/i, ""));
-    if (wiki) return wiki;
+    const own = ownAnswer(q);
+    if (own) return own;
 
-    return "No tengo señal hacia la nube en este momento. Revisa tu conexión a internet. Por ahora puedo: matemáticas, hora/fecha y búsquedas enciclopédicas.";
+    const wiki = await wikiSummary(qRaw.replace(/^(que es|qué es|que significa|qué significa|explícame|explica|dime|resume|cómo es)\s+/i, ""));
+    if (wiki) return "📘 *Enciclopedia*\n\nSegún mi documentación y el resumen de Wikipedia, esto es lo que importa:\n" + wiki;
+
+    return "No tengo señal para la nube IA en este momento y mi enciclopedia no encontró ese tema. Prueba otra vez en unos segundos o pregúntame por temas conocidos.";
   }
 
   // ---------- Motor de IA (tu API opcional → IA en tu navegador sin clave → cerebro local) ----------
@@ -189,11 +205,30 @@
     }
   }
 
+  // ---- Nube gratuita sin clave (Puter): una IA real respondiendo sin registro ----
+  async function callPuter(history) {
+    if (!(window.puter && window.puter.ai && window.puter.ai.chat)) {
+      if (!$("localBrainText").dataset.puterOk) { /* aviso una sola vez */ }
+      return null;
+    }
+    try {
+      const prompt = history.map((m) => (m.role === "user" ? m.content : m.content)).join("\n\n");
+      const res = await Promise.race([
+        window.puter.ai.chat(prompt),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 45000))
+      ]);
+      const txt = typeof res === "string" ? res : (res && (res.message?.content || res.choices?.[0]?.message?.content)) || "";
+      return txt.trim() || null;
+    } catch { return null; }
+  }
+
   async function callAI(history) {
     if (brainMode() === "api") {
       try { return await callConfigured(history); }
       catch (e) {
-        moonSay("⚠️ Tu API no respondió (" + esc(e.message) + "). Uso mi cerebro local.");
+        moonSay("⚠️ Tu API no respondió (" + esc(e.message) + "). Uso la nube gratuita.");
+        const p = await callPuter(history);
+        if (p) return p;
         const ok = await loadBrowserBrain(true);
         if (ok) { try { return await webllmChat(history); } catch {} }
         return null;
@@ -202,6 +237,8 @@
     if (engineState.ready) {
       try { const r = await webllmChat(history); if (r) return r; } catch {}
     }
+    const cloud = await callPuter(history);
+    if (cloud) return cloud;
     return null; // cerebro local (offline)
   }
 
@@ -553,8 +590,8 @@
       apiState.innerHTML = "🧠 IA local lista: sin clave, privada y sin internet.";
       $("statMode").textContent = "LOCAL IA";
     } else {
-      apiState.innerHTML = "🧠 Sin clave: puedo cargar una IA en tu navegador (botón de arriba) o configurar una API.";
-      $("statMode").textContent = "SIN CLAVE";
+      apiState.innerHTML = "🧠 Sin clave: respondo ya vía mi nube gratuita (IA real, gratis). También puedes cargar la IA 100% local/privada con el botón de arriba.";
+      $("statMode").textContent = "NUBE IA";
     }
   }
   $("btnLocalBrain").addEventListener("click", () => loadBrowserBrain(false));
