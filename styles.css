@@ -127,50 +127,46 @@ body::after {
   text-shadow: 0 0 10px rgba(255,215,0,0.45);
 }
 
-/* ---- ORBE DORADO GIRANDO (fondo del chat) ---- */
+/* ---- ORBE ESTILO AGE OF ULTRON (esfera de anillos girando en 3D) ---- */
 .chatPanel { overflow: hidden; }
 .orb {
   position: absolute; inset: 0; z-index: 0; pointer-events: none;
   display: flex; align-items: center; justify-content: center;
-  overflow: hidden;
+  perspective: 1000px;
 }
 .orb .core {
-  position: absolute; width: 340px; height: 340px; border-radius: 50%;
-  background: radial-gradient(circle at 36% 32%, #fffbe0 0%, var(--gold) 32%, rgba(160,116,0,0.55) 62%, rgba(20,10,0,0.15) 78%, transparent 82%);
-  opacity: 0.30;
-  filter: blur(1px);
-  box-shadow: 0 0 120px rgba(255,215,0,0.45), 0 0 60px rgba(255,215,0,0.30);
-  animation: visible 9s ease-in-out infinite;
+  position: absolute; width: 300px; height: 300px; border-radius: 50%;
+  background: radial-gradient(circle at 38% 34%, #fff8dc 0%, #ffe066 18%, #f5b700 34%, rgba(190,120,0,0.75) 52%, rgba(80,45,0,0.35) 68%, transparent 74%);
+  box-shadow:
+    0 0 90px 20px rgba(255,200,60,0.55),
+    0 0 170px 60px rgba(255,160,20,0.25),
+    inset 0 0 50px rgba(255,120,0,0.5),
+    inset 0 0 12px rgba(255,220,120,0.9);
+  animation: corePulse 4s ease-in-out infinite;
 }
-.orb .ring {
-  position: absolute; border-radius: 50%;
-  border-top: 2px solid var(--gold);
-  border-right: 1px solid rgba(255,215,0,0.18);
-  border-bottom: 1px solid rgba(255,215,0,0.10);
-  border-left: 1px solid rgba(255,215,0,0.25);
-  opacity: 0.5;
+.orb .ring { position: absolute; border-radius: 50%; border: 2px solid rgba(255,215,0,0.20); will-change: transform; }
+.orb .a { width: 480px; height: 480px; border-top: 3px solid rgba(255,215,0,0.95); border-left: 2px solid rgba(255,215,0,0.30); box-shadow: 0 0 16px rgba(255,200,60,0.5), inset 0 0 30px rgba(255,180,40,0.25); animation: g1 14s linear infinite; }
+.orb .b { width: 480px; height: 480px; border-top: 3px solid rgba(255,190,0,0.75); border-bottom: 2px solid rgba(120,160,255,0.40); box-shadow: 0 0 16px rgba(255,190,0,0.45); animation: g2 18s linear infinite reverse; }
+.orb .c { width: 480px; height: 480px; border-top: 3px solid rgba(255,220,90,0.85); box-shadow: 0 0 16px rgba(255,210,60,0.45); animation: g3 12s linear infinite; }
+.orb .d { width: 480px; height: 480px; border-bottom: 3px solid rgba(70,140,255,0.55); box-shadow: 0 0 16px rgba(70,140,255,0.25); animation: g4 22s linear infinite reverse; }
+.orb .flat { width: 560px; height: 560px; border: 2px dashed rgba(255,215,0,0.50); box-shadow: 0 0 24px rgba(255,200,60,0.35), inset 0 0 24px rgba(255,200,60,0.12); animation: spinFlat 10s linear infinite; }
+.orb .satWrap, .orb .satWrap2 { position: absolute; width: 480px; height: 480px; }
+.orb .satWrap { animation: g2 18s linear infinite reverse; }
+.orb .satWrap2 { animation: g1 14s linear infinite; }
+.orb .sat {
+  position: absolute; width: 10px; height: 10px; border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 12px 3px var(--gold), 0 0 30px 8px rgba(255,190,0,0.6);
 }
-.orb .r1 { width: 560px; height: 560px; animation: spinX1 26s linear infinite; }
-.orb .r2 { width: 470px; height: 470px; animation: spinX2 16s linear infinite reverse; transform-origin: center; }
-.orb .r3 { width: 660px; height: 660px; border-top-color: rgba(110,126,255,0.55); animation: spinX3 40s linear infinite; }
-.orb .ringSmall {
-  position: absolute; width: 210px; height: 210px; border-radius: 50%;
-  border: 1px solid rgba(255,215,0,0.30);
-  animation: spinFlat 12s linear infinite;
-}
-.orb .ringSmall::after {
-  content: ""; position: absolute; top: 8px; left: 8px; width: 12px; height: 12px; border-radius: 50%;
-  background: var(--gold); box-shadow: 0 0 12px var(--gold);
-}
-@keyframes visible {
-  0%,100% { transform: scale(1); opacity: 0.26; }
-  50% { transform: scale(1.06); opacity: 0.38; }
-}
-@keyframes spinX1 { from { transform: rotateX(74deg) rotateZ(0deg); } to { transform: rotateX(74deg) rotateZ(360deg); } }
-@keyframes spinX2 { from { transform: rotateX(62deg) rotateZ(360deg); } to { transform: rotateX(62deg) rotateZ(0deg); } }
-@keyframes spinX3 { from { transform: rotateX(80deg) rotateZ(0deg); } to { transform: rotateX(80deg) rotateZ(-360deg); } }
+.orb .sat.s1 { top: -6px; left: 50%; margin-left: -5px; }
+.orb .sat.s2 { bottom: -6px; left: 50%; margin-left: -5px; }
+
+@keyframes g1   { from { transform: rotateX(72deg) rotateY(8deg) rotateZ(0deg); }   to { transform: rotateX(72deg) rotateY(8deg) rotateZ(360deg); } }
+@keyframes g2   { from { transform: rotateX(30deg) rotateY(72deg) rotateZ(360deg); } to { transform: rotateX(30deg) rotateY(72deg) rotateZ(0deg); } }
+@keyframes g3   { from { transform: rotateX(-50deg) rotateY(50deg) rotateZ(0deg); } to { transform: rotateX(-50deg) rotateY(50deg) rotateZ(-360deg); } }
+@keyframes g4   { from { transform: rotateX(90deg) rotateZ(360deg); } to { transform: rotateX(90deg) rotateZ(0deg); } }
 @keyframes spinFlat { from { transform: rotateZ(0deg); } to { transform: rotateZ(360deg); } }
-@keyframes orbFloat { 0%,100% { translate: 0 0; } 50% { translate: 0 -14px; } }
+@keyframes corePulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
 
 .chat {
   position: relative; z-index: 1;
