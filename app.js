@@ -50,8 +50,12 @@
     return div;
   }
   function moonSay(text) {
-    return addMsg("moon", esc(text).replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, body) =>
-      `<span class="who">code</span><pre style="background:#03101d;padding:8px;border-radius:6px;border:1px solid #0e3a5e;overflow:auto">${esc(body)}</pre>`));
+    let html = esc(text);
+    html = html.replace(/\[\[GOOGLE:(.*?)\]\]/g, (_, q) =>
+      ` <a class="gBtn" href="https://www.google.com/search?q=${encodeURIComponent(q)}" target="_blank" rel="noopener">🔎 Buscar en Google</a>`);
+    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, body) =>
+      `<span class="who">code</span><pre style="background:#03101d;padding:8px;border-radius:6px;border:1px solid #0e3a5e;overflow:auto">${esc(body)}</pre>`);
+    return addMsg("moon", html);
   }
 
   // ---------- Cerebro local (modo sin API) ----------
@@ -117,9 +121,9 @@
     if (own) return own;
 
     const wiki = await wikiSummary(qRaw.replace(/^(que es|qué es|que significa|qué significa|explícame|explica|dime|resume|cómo es)\s+/i, ""));
-    if (wiki) return "📘 *Enciclopedia*\n\nSegún mi documentación y el resumen de Wikipedia, esto es lo que importa:\n" + wiki;
+    if (wiki) return "📘 *Enciclopedia*\n\nSegún mi documentación y el resumen de Wikipedia, esto es lo que importa:\n" + wiki + "\n\nPara más, busca en Google lo que quieras. [[GOOGLE:" + qRaw.trim().slice(0, 80) + "]]";
 
-    return "No tengo señal para la nube IA en este momento y mi enciclopedia no encontró ese tema. Prueba otra vez en unos segundos o pregúntame por temas conocidos.";
+    return "No tengo señal para la nube IA en este momento. Te busco en Google el tema o pruebo con mi enciclopedia. [[GOOGLE:" + qRaw.trim().slice(0, 80) + "]]";
   }
 
   // ---------- Motor de IA (tu API opcional → IA en tu navegador sin clave → cerebro local) ----------
@@ -207,16 +211,18 @@
 
   // ---- Nube gratuita sin clave (Puter): una IA real respondiendo sin registro ----
   async function callPuter(history) {
-    if (!(window.puter && window.puter.ai && window.puter.ai.chat)) {
-      if (!$("localBrainText").dataset.puterOk) { /* aviso una sola vez */ }
-      return null;
-    }
-    try {
-      const prompt = history.map((m) => (m.role === "user" ? m.content : m.content)).join("\n\n");
-      const res = await Promise.race([
+    if (!(window.puter && window.puter.ai && window.puter.ai.chat)) return null;
+    const ask = async () => {
+      const prompt = history.map((m) => m.content).join("\n\n");
+      return Promise.race([
         window.puter.ai.chat(prompt),
-        new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 45000))
+        new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 25000))
       ]);
+    };
+    try {
+      let res;
+      try { res = await ask(); }
+      catch { await sleep(1200); res = await ask(); } // reintento automático
       const txt = typeof res === "string" ? res : (res && (res.message?.content || res.choices?.[0]?.message?.content)) || "";
       return txt.trim() || null;
     } catch { return null; }
@@ -654,7 +660,14 @@
     setTimeout(() => { $("localBrainText").textContent = "Preparando la IA local… (descarga única)"; loadBrowserBrain(true); }, 1500);
   } else if (brainMode() !== "api") {
     setTimeout(() => {
-      $("localBrainText").textContent = "Tu navegador no detecta WebGPU (usa Chrome reciente). Resuelvo con cerebro local mientras tanto.";
+      $("localBrainText").textContent = "Tu navegador no detecta WebGPU (usa Chrome reciente). Uso la nube IA gratuita; si falla, enciclopedia + Google.";
     }, 1500);
   }
+  // Comprueba que la nube IA gratuita cargó realmente; si no, avisa
+  setTimeout(() => {
+    if (brainMode() !== "api" && !(window.puter && window.puter.ai && window.puter.ai.chat) && !$("localBrainText").dataset.warned) {
+      $("localBrainText").dataset.warned = "1";
+      $("localBrainText").textContent = "⚠️ La nube IA gratuita no cargó (¿bloqueador de anuncios o red?). Igual puedes hablar: uso IA local o enciclopedia + botón Google.";
+    }
+  }, 4000);
 })();
