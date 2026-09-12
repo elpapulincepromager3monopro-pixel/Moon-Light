@@ -53,6 +53,8 @@
     let html = esc(text);
     html = html.replace(/\[\[GOOGLE:(.*?)\]\]/g, (_, q) =>
       ` <a class="gBtn" href="https://www.google.com/search?q=${encodeURIComponent(q)}" target="_blank" rel="noopener">🔎 Buscar en Google</a>`);
+    html = html.replace(/\[\[URL:((?:https?:\/\/)[^\]]*?)\|((?:[^\]]*?))\]\]/gi, (_, u, l) =>
+      ` <a class="gBtn" href="${u}" target="_blank" rel="noopener noreferrer">${l}</a>`);
     html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, body) =>
       `<span class="who">code</span><pre style="background:#03101d;padding:8px;border-radius:6px;border:1px solid #0e3a5e;overflow:auto">${esc(body)}</pre>`);
     return addMsg("moon", html);
@@ -115,6 +117,21 @@
     return null;
   }
 
+  // Buscador web real cuando corre en tu PC (el servidor entra a la web por ti)
+  async function webSearchServer(qRaw) {
+    try {
+      const r = await fetchWithTimeout(`api/search?q=${encodeURIComponent(qRaw)}`, {}, 8000);
+      if (!r.ok) return null;
+      const ct = r.headers.get("content-type") || "";
+      if (!ct.includes("json")) return null;
+      const j = await r.json();
+      const results = (j.results || []).slice(0, 5);
+      if (!results.length) return null;
+      const list = results.map((x, i) => `${i + 1}. **${x.title}** [[URL:${x.url}|Abrir]]\n   ${x.snippet}`).join("\n\n");
+      return `🔍 *Resultados de la web para «${stripHtml(qRaw.trim()).slice(0, 80)}»:*\n\n${list}\n\n¿Quieres que te lea alguno en detalle? Dímelo. [[GOOGLE:${qRaw.trim().slice(0, 80)}]]`;
+    } catch { return null; }
+  }
+
   async function localBrain(qRaw) {
     const q = qRaw.toLowerCase();
     const when = async (m) => {
@@ -134,6 +151,9 @@
 
     const own = ownAnswer(q);
     if (own) return own;
+
+    const web = await webSearchServer(qRaw);
+    if (web) return web;
 
     const wiki = await wikiSummary(qRaw);
     if (wiki) return wiki;
