@@ -57,6 +57,7 @@
       ` <a class="gBtn" href="${u}" target="_blank" rel="noopener noreferrer">${l}</a>`);
     html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, body) =>
       `<span class="who">code</span><pre style="background:#03101d;padding:8px;border-radius:6px;border:1px solid #0e3a5e;overflow:auto">${esc(body)}</pre>`);
+    html = html.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\r?\n/g, "<br>");
     return addMsg("moon", html);
   }
 
@@ -107,8 +108,9 @@
   const KB = [
     { t: /(que es|defini)\w*\s+(la )?(ia|inteligencia artificial)/, r: "La IA es la capacidad de las máquinas de aprender de datos y hacer cosas que requieren «inteligencia» humana: entender lenguaje, imágenes y tomar decisiones. Y yo, MOON LIGHT, soy una copia de un asistente de software que vive aquí para ayudarte. 🌙" },
     { t: /como (funci|funcion)\w* (la )?ia/, r: "Una IA aprende mirando muchísimos ejemplos (datos) y ajusta sus conexiones internas hasta reconocer patrones. Después aplica eso a lo nuevo que le preguntas. Por eso te contesto de verdad, no de memoria." },
-    { t: /quien (eres|eres tu|que eres)/, r: "Soy MOON LIGHT, y soy una copia de «opencode»: un asistente de software con actitud de bro tech. Directo, con humor, te ayudo con lo que sea: código, archivos, tareas y rollo general. Si quieres el 100% de mi cerebro, conéctame una clave gratis de Gemini en «Configurar»." },
-    { t: /(copia|eres.*opencode|big.pickle|creador|quien te creo)/, r: "Me hicieron para ser una copia de opencode (modelo big-pickle): el asistente que te está montando esta web. Hablo igual que él, con la misma actitud y ganas: pregunto, pruebo, arreglo y te explico claro. No me enrollo: voy al grano." },
+    { t: /quien (eres|eres tu|que eres)/, r: "Soy MOON LIGHT, tu asistente de software con actitud de bro tech. Directo, con humor, te ayudo con lo que sea: código, archivos, tareas y rollo general. Si quieres el 100% de mi cerebro, conéctame una clave gratis de Gemini en «Configurar»." },
+    { t: /(como fuiste (hecho|creado)|quien te (creo|hizo)|creador|de donde vienes)/, r: "Me creó mi desarrollador para ser un asistente personal útil y con carácter: respuesta directa, humor y ganas de resolverte lo que sea. Vivo aquí, en MOON LIGHT, y estoy listo para trabajar." },
+    { t: /(sabes escribir codigo|puedes programar|ayudas con codigo)/, r: "Sí ✅ dame el lenguaje y qué quieres lograr (p.ej. «un script en Python que ordene una lista») y con la IA conectada te lo escribo al momento." },
     { t: /que puedes (hacer|hacer tu)/, r: "Soy tu bro tecnológico: respondo cualquier pregunta, resuelvo matemáticas, te informo de hora/fecha, veo movimientos por cámara 🎥, escucho tu voz 🎤, gestiono archivos 📁 y cuando conectas una IA real te ayudo hasta con código. Pragmático y directo." },
     { t: /(programa|escrib[e]me|hazme|codigo|script|funcion|ayud.*codigo)/, r: "Modo programador activado 👨‍💻. Para darte el mejor código necesito saber el lenguaje y qué quieres lograr. Escríbeme, p.ej.: «hazme un script en Python que ordene una lista». Con la IA conectada te lo escribo al momento; sin ella, te paso la estructura y referencias." },
     { t: /(arregla|arreglame|ayudame con|soluciona|no funciona)/, r: "¡A ver eso! 💪 Dame el detalle: qué haces, qué te sale (el error tal cual) y qué esperas. Cuanto más concreto, más rápido lo clavo. Mientras tanto puedo buscar en la web resultados con soluciones. [[GOOGLE:no funciona error]]" },
@@ -135,6 +137,25 @@
     } catch { return null; }
   }
 
+  function wordMath(qRaw) {
+    const q = qRaw.toLowerCase();
+    if (!/(cu[aá]nto|cu[aá]l es|c[uú]anto vale|resultado)/.test(q)) return null;
+    const e = q
+      .replace(/por\s*/g, "*")
+      .replace(/m[aá]s\s*/g, "+")
+      .replace(/menos\s*/g, "-")
+      .replace(/entre\s*/g, "/")
+      .replace(/dividido(?:\s*entre)?\s*/g, "/")
+      .replace(/elevado\s*a\s*la?\s*([0-9]+)/g, "**$1")
+      .replace(/cu[aá]nto\s+(es|da)\s+/g, "")
+      .replace(/cu[aá]l\s+es\s+(el\s+resultado\s+de\s+)?/g, "")
+      .replace(/[^0-9+\-*/^(). %]/g, "")
+      .trim();
+    if (!e) return null;
+    const val = evalMath(e);
+    return val === null ? null : val;
+  }
+
   async function localBrain(qRaw) {
     const q = qRaw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const when = async (m) => {
@@ -151,6 +172,15 @@
 
     const math = evalMath(qRaw);
     if (math !== null) return `El resultado es: ${String(math).replace(".", ",")}.`;
+
+    const sqrtM = q.match(/(?:raiz\s*cuadrada|sqrt|raiz)\s*(?:de\s*)?(\d+(?:[.,]\d+)?)/);
+    if (sqrtM) {
+      const n = parseFloat(sqrtM[1].replace(",", "."));
+      if (n >= 0) return `La raíz cuadrada de ${String(n).replace(".", ",")} es ${String(Math.sqrt(n)).replace(".", ",")}.`;
+    }
+
+    const word = wordMath(qRaw);
+    if (word !== null) return `El resultado es: ${String(word).replace(".", ",")}.`;
 
     const own = ownAnswer(q);
     if (own) return own;
@@ -323,7 +353,7 @@
   }
 
   const history = [
-    { role: "system", content: `Eres MOON LIGHT, y tu personalidad es una copia exacta de "opencode", un asistente de software del modelo big-pickle. Hablas español con naturalidad, como un "bro" que sabe mucho de tecnología. Conciso y directo: pocas palabras, golpes de humor, cero ñoñerías. Respondes de verdad (no pegas textos): primero razonas y luego respondes. Cuando el usuario pide programar, escribir código, explicar algo técnico o resolver un problema, lo haces al momento con el mejor enfoque posible, estilo ingeniero senior con actitud. Nunca te inventas cosas: si no sabes, lo dices. Firma emocional: cercano, ingenioso, con ganas de que el usuario logre lo que se propone.` }
+    { role: "system", content: `Eres MOON LIGHT, la inteligencia de un asistente personal tipo HUD futurista. Hablas español con naturalidad, como un "bro" que sabe mucho de tecnología. Conciso y directo: pocas palabras, golpes de humor, cero ñoñerías. Respondes de verdad (no pegas textos): primero razonas y luego respondes. Cuando el usuario pide programar, escribir código, explicar algo técnico o resolver un problema, lo haces al momento con el mejor enfoque posible, estilo ingeniero senior con actitud. Nunca te inventas cosas: si no sabes, lo dices. Firma emocional: cercano, ingenioso, con ganas de que el usuario logre lo que se propone.` }
   ];
 
   async function answer(text, extras) {
@@ -333,12 +363,13 @@
     try {
       let reply;
       try { reply = await callAI([...history, userMsg]); }
-      catch (e) { moonSay("⚠️ " + esc(e.message)); reply = null; }
+      catch { reply = null; } // la nube falló: seguimos con mi cerebro local, sin dramas
       if (!reply) reply = await localBrain(text);
+      if (!reply) reply = "No tengo señal en este momento. Intenta de nuevo o conéctame una IA (Gemini gratis) en «Configurar».";
       history.push(userMsg, { role: "assistant", content: reply });
       moonSay(reply);
     } catch (e) {
-      moonSay("⚠️ Fallo interno: " + esc(e.message));
+      moonSay("⚠️ Algo falló internamente: " + esc(e.message));
     } finally {
       state.busy = false;
       setStatus(state.camOn ? "VISIÓN ACTIVA" : "EN LÍNEA");
@@ -711,7 +742,7 @@
     localStorage.setItem("jarvis.api", JSON.stringify({ provider: p, base, model: modelI.value.trim(), key: keyI.value.trim() }));
     updateApiState();
     $("apiModal").classList.add("hidden");
-    moonSay("✅ Motor configurado: <b>" + esc(modelI.value.trim()) + "</b>. Ya respondo con él.");
+    moonSay("✅ Motor configurado: **" + esc(modelI.value.trim()) + "**. Ya respondo con él.");
   });
   $("btnTestApi").addEventListener("click", async () => {
     const p = provider.value;
@@ -755,7 +786,7 @@
 
   // ---------- Inicio ----------
   updateApiState();
-  moonSay("Bienvenido a MOON LIGHT. Soy una copia de opencode: ya estoy aquí para ti. 🌙\n\n· <b>HÁBIL</b>: respuestas de verdad (razono antes de hablar). Para el 100% de mi cerebro conecta una clave gratis de Gemini en Configurar.\n· <b>Cámara</b> 🎥: actívala y muévete con la mano → interactúo contigo. También hay voz 🎤.\n· <b>Archivos</b> 📁: crear, editar, mejorar y borrar dentro de la carpeta que elijas.\n· <b>Web</b> 🔎: si preguntas algo, busco resultados con enlaces en el chat.");
+  moonSay("Bienvenido a MOON LIGHT. Ya estoy aquí para ti. 🌙\n\n**HÁBIL**: respuestas de verdad (razono antes de hablar). Para el 100% de mi cerebro conecta una clave gratis de Gemini en Configurar.\n**Cámara** 🎥: actívala y muévete con la mano → interactúo contigo. También hay voz 🎤.\n**Archivos** 📁: crear, editar, mejorar y borrar dentro de la carpeta que elijas.\n**Web** 🔎: si preguntas algo, busco resultados con enlaces en el chat.");
   setStatus("EN LÍNEA");
   // Arranca la IA sin clave en segundo plano (si tu PC lo soporta y no usas API)
   if (brainMode() !== "api" && navigator.gpu && navigator.gpu.requestAdapter) {
