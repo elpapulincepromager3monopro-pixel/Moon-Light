@@ -81,7 +81,7 @@
     .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
     .replace(/\s+/g, " ").trim();
   async function wikiSummary(query) {
-    const clean = query.replace(/^(que es|qué es|que significa|qué significa|explícame|explica|dime|resume|cómo es|busca|buscar|palabra|definición de|que son|qué son)\s+/i, "");
+    const clean = query.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/^(que es|que significa|que quiere decir|explicame|explica|dime|resume|como es|busca|buscar|palabra|definicion de|que son|cual es|cuales son|por que|quien fue|que fue)\s+/i, "");
     const r = await fetchWithTimeout(`https://es.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(clean)}&format=json&origin=*&utf8=1&srlimit=5`, {}, 9000);
     const j = await r.json();
     const hits = j.query?.search || [];
@@ -105,13 +105,13 @@
   }
 
   const KB = [
-    { t: /(qué es|defini)\w*\s+(la )?(ia|inteligencia artificial)/, r: "La IA es la capacidad de las máquinas de aprender de datos y hacer cosas que requieren «inteligencia» humana: entender lenguaje, imágenes y tomar decisiones. Y yo, MOON LIGHT, soy una copia de un asistente de software que vive aquí para ayudarte. 🌙" },
-    { t: /cómo (funci|funcion)\w* (la )?ia/, r: "Una IA aprende mirando muchísimos ejemplos (datos) y ajusta sus conexiones internas hasta reconocer patrones. Después aplica eso a lo nuevo que le preguntas. Por eso te contesto de verdad, no de memoria." },
-    { t: /quién (eres|eres tú|que eres)/, r: "Soy MOON LIGHT, y soy una copia de «opencode»: un asistente de software con actitud de bro tech. Directo, con humor, te ayudo con lo que sea: código, archivos, tareas y rollo general. Si quieres el 100% de mi cerebro, conéctame una clave gratis de Gemini en «Configurar»." },
-    { t: /(copia|eres.*opencode|big.pickle|creador|quien te creo|quién te creó)/, r: "Me hicieron para ser una copia de opencode (modelo big-pickle): el asistente que te está montando esta web. Hablo igual que él, con la misma actitud y ganas: pregunto, pruebo, arreglo y te explico claro. No me enrollo: voy al grano." },
-    { t: /qué puedes (hacer|hacer tú)/, r: "Soy tu bro tecnológico: respondo cualquier pregunta, resuelvo matemáticas, te informo de hora/fecha, veo movimientos por cámara 🎥, escucho tu voz 🎤, gestiono archivos 📁 y cuando conectas una IA real te ayudo hasta con código. Pragmático y directo." },
-    { t: /(programa|escrib[e]me|hazme|codigo|código|script|funcion|función para|ayud.*c[oó]digo)/, r: "Modo programador activado 👨‍💻. Para darte el mejor código necesito saber el lenguaje y qué quieres lograr. Escríbeme, p.ej.: «hazme un script en Python que ordene una lista». Con la IA conectada te lo escribo al momento; sin ella, te paso la estructura y referencias." },
-    { t: /(arregla|arreglame|ayudame con|ayúdame con|soluciona|no funciona)/, r: "¡A ver eso! 💪 Dame el detalle: qué haces, qué te sale (el error tal cual) y qué esperas. Cuanto más concreto, más rápido lo clavo. Mientras tanto puedo buscar en la web resultados con soluciones. [[GOOGLE:no funciona error]]" },
+    { t: /(que es|defini)\w*\s+(la )?(ia|inteligencia artificial)/, r: "La IA es la capacidad de las máquinas de aprender de datos y hacer cosas que requieren «inteligencia» humana: entender lenguaje, imágenes y tomar decisiones. Y yo, MOON LIGHT, soy una copia de un asistente de software que vive aquí para ayudarte. 🌙" },
+    { t: /como (funci|funcion)\w* (la )?ia/, r: "Una IA aprende mirando muchísimos ejemplos (datos) y ajusta sus conexiones internas hasta reconocer patrones. Después aplica eso a lo nuevo que le preguntas. Por eso te contesto de verdad, no de memoria." },
+    { t: /quien (eres|eres tu|que eres)/, r: "Soy MOON LIGHT, y soy una copia de «opencode»: un asistente de software con actitud de bro tech. Directo, con humor, te ayudo con lo que sea: código, archivos, tareas y rollo general. Si quieres el 100% de mi cerebro, conéctame una clave gratis de Gemini en «Configurar»." },
+    { t: /(copia|eres.*opencode|big.pickle|creador|quien te creo)/, r: "Me hicieron para ser una copia de opencode (modelo big-pickle): el asistente que te está montando esta web. Hablo igual que él, con la misma actitud y ganas: pregunto, pruebo, arreglo y te explico claro. No me enrollo: voy al grano." },
+    { t: /que puedes (hacer|hacer tu)/, r: "Soy tu bro tecnológico: respondo cualquier pregunta, resuelvo matemáticas, te informo de hora/fecha, veo movimientos por cámara 🎥, escucho tu voz 🎤, gestiono archivos 📁 y cuando conectas una IA real te ayudo hasta con código. Pragmático y directo." },
+    { t: /(programa|escrib[e]me|hazme|codigo|script|funcion|ayud.*codigo)/, r: "Modo programador activado 👨‍💻. Para darte el mejor código necesito saber el lenguaje y qué quieres lograr. Escríbeme, p.ej.: «hazme un script en Python que ordene una lista». Con la IA conectada te lo escribo al momento; sin ella, te paso la estructura y referencias." },
+    { t: /(arregla|arreglame|ayudame con|soluciona|no funciona)/, r: "¡A ver eso! 💪 Dame el detalle: qué haces, qué te sale (el error tal cual) y qué esperas. Cuanto más concreto, más rápido lo clavo. Mientras tanto puedo buscar en la web resultados con soluciones. [[GOOGLE:no funciona error]]" },
     { t: /(chiste|broma|algo gracioso)/, r: "¿Por qué la IA no va a la playa? Porque le da miedo la red neuronal… ¡perdón, eran bytes de más! 😄" },
     { t: /(gracias|te amo|te quiero)/, r: "¡A ti, bro! Por eso cierro con un guiño dorado: estoy para ayudarte." }
   ];
@@ -136,11 +136,11 @@
   }
 
   async function localBrain(qRaw) {
-    const q = qRaw.toLowerCase();
+    const q = qRaw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const when = async (m) => {
       const t = new Date();
-      if (/(qué hora|hora es)/.test(q)) return `Son las ${t.toLocaleTimeString("es-ES")}.`;
-      if (/(qué fecha|fecha es|día es hoy|hoy es)/.test(q)) return `Hoy es ${t.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}.`;
+      if (/(que hora|hora es)/.test(q)) return `Son las ${t.toLocaleTimeString("es-ES")}.`;
+      if (/(que fecha|fecha es|dia es hoy|hoy es)/.test(q)) return `Hoy es ${t.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}.`;
       return null;
     };
     const w = await when();
@@ -765,11 +765,17 @@
       $("localBrainText").textContent = "Tu navegador no detecta WebGPU (usa Chrome reciente). Uso la nube IA gratuita; si falla, enciclopedia + Google.";
     }, 1500);
   }
-  // Comprueba que la nube IA gratuita cargó realmente; si no, avisa
+  // Comprueba que la nube IA gratuita cargó realmente; si no, reintenta descargarla
   setTimeout(() => {
     if (brainMode() !== "api" && !(window.puter && window.puter.ai && window.puter.ai.chat) && !$("localBrainText").dataset.warned) {
       $("localBrainText").dataset.warned = "1";
-      $("localBrainText").textContent = "⚠️ La nube IA gratuita no cargó (¿bloqueador de anuncios o red?). Igual puedes hablar: uso IA local o enciclopedia + botón Google.";
+      const s = document.createElement("script");
+      s.src = "https://js.puter.com/v2/";
+      s.onload = () => { if (window.puter && window.puter.ai) { $("localBrainText").textContent = "Nube IA conectada ✓ (respuestas con inteligencia real)"; } };
+      s.onerror = () => {
+        $("localBrainText").textContent = "⚠️ Tu navegador/red bloquea la nube IA gratuita. Prueba con Internet normal o conecta una clave gratis (Gemini) en «Configurar». Mientras tanto respondo con mi personalidad + buscador web.";
+      };
+      document.head.appendChild(s);
     }
   }, 4000);
 })();
