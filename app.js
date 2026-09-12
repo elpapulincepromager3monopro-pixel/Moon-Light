@@ -105,12 +105,15 @@
   }
 
   const KB = [
-    { t: /(qué es|defini)\w*\s+(la )?(ia|inteligencia artificial)/, r: "La IA es la capacidad de las máquinas para aprender de datos y hacer cosas que requieren «inteligencia» humana: entender lenguaje, imágenes y tomar decisiones. Y yo, MOON LIGHT, soy un ejemplo de ello. 🌙" },
+    { t: /(qué es|defini)\w*\s+(la )?(ia|inteligencia artificial)/, r: "La IA es la capacidad de las máquinas de aprender de datos y hacer cosas que requieren «inteligencia» humana: entender lenguaje, imágenes y tomar decisiones. Y yo, MOON LIGHT, soy una copia de un asistente de software que vive aquí para ayudarte. 🌙" },
     { t: /cómo (funci|funcion)\w* (la )?ia/, r: "Una IA aprende mirando muchísimos ejemplos (datos) y ajusta sus conexiones internas hasta reconocer patrones. Después aplica eso a lo nuevo que le preguntas. Por eso te contesto de verdad, no de memoria." },
-    { t: /quién (eres|eres tú|qué eres)/, r: "Soy MOON LIGHT, tu asistente personal con HUD estilo JARVIS. Respondo con IA real (sin clave en este modo), veo por cámara, escucho por voz y gestiono tus archivos." },
-    { t: /qué puedes (hacer|hacer tú)/, r: "Respondo cualquier pregunta, resuelvo matemáticas, te informo de la hora/fecha, veo movimientos por cámara 🎥, escucho tu voz 🎤 y creo/edito/borro archivos 📁 en la carpeta que elijas." },
+    { t: /quién (eres|eres tú|que eres)/, r: "Soy MOON LIGHT, y soy una copia de «opencode»: un asistente de software con actitud de bro tech. Directo, con humor, te ayudo con lo que sea: código, archivos, tareas y rollo general. Si quieres el 100% de mi cerebro, conéctame una clave gratis de Gemini en «Configurar»." },
+    { t: /(copia|eres.*opencode|big.pickle|creador|quien te creo|quién te creó)/, r: "Me hicieron para ser una copia de opencode (modelo big-pickle): el asistente que te está montando esta web. Hablo igual que él, con la misma actitud y ganas: pregunto, pruebo, arreglo y te explico claro. No me enrollo: voy al grano." },
+    { t: /qué puedes (hacer|hacer tú)/, r: "Soy tu bro tecnológico: respondo cualquier pregunta, resuelvo matemáticas, te informo de hora/fecha, veo movimientos por cámara 🎥, escucho tu voz 🎤, gestiono archivos 📁 y cuando conectas una IA real te ayudo hasta con código. Pragmático y directo." },
+    { t: /(programa|escrib[e]me|hazme|codigo|código|script|funcion|función para|ayud.*c[oó]digo)/, r: "Modo programador activado 👨‍💻. Para darte el mejor código necesito saber el lenguaje y qué quieres lograr. Escríbeme, p.ej.: «hazme un script en Python que ordene una lista». Con la IA conectada te lo escribo al momento; sin ella, te paso la estructura y referencias." },
+    { t: /(arregla|arreglame|ayudame con|ayúdame con|soluciona|no funciona)/, r: "¡A ver eso! 💪 Dame el detalle: qué haces, qué te sale (el error tal cual) y qué esperas. Cuanto más concreto, más rápido lo clavo. Mientras tanto puedo buscar en la web resultados con soluciones. [[GOOGLE:no funciona error]]" },
     { t: /(chiste|broma|algo gracioso)/, r: "¿Por qué la IA no va a la playa? Porque le da miedo la red neuronal… ¡perdón, eran bytes de más! 😄" },
-    { t: /(gracias|te amo|te quiero)/, r: "¡A ti! Por eso cierro con un guiño dorado: estoy para ayudarte." }
+    { t: /(gracias|te amo|te quiero)/, r: "¡A ti, bro! Por eso cierro con un guiño dorado: estoy para ayudarte." }
   ];
   function ownAnswer(q) {
     for (const item of KB) if (item.t.test(q)) return item.r;
@@ -320,7 +323,7 @@
   }
 
   const history = [
-    { role: "system", content: "Eres MOON LIGHT, una inteligencia artificial avanzada. Responde en español, con actitud profesional, directa y un toque ingenioso. Eres experto en todas las materias." }
+    { role: "system", content: `Eres MOON LIGHT, y tu personalidad es una copia exacta de "opencode", un asistente de software del modelo big-pickle. Hablas español con naturalidad, como un "bro" que sabe mucho de tecnología. Conciso y directo: pocas palabras, golpes de humor, cero ñoñerías. Respondes de verdad (no pegas textos): primero razonas y luego respondes. Cuando el usuario pide programar, escribir código, explicar algo técnico o resolver un problema, lo haces al momento con el mejor enfoque posible, estilo ingeniero senior con actitud. Nunca te inventas cosas: si no sabes, lo dices. Firma emocional: cercano, ingenioso, con ganas de que el usuario logre lo que se propone.` }
   ];
 
   async function answer(text, extras) {
@@ -752,7 +755,7 @@
 
   // ---------- Inicio ----------
   updateApiState();
-  moonSay("Bienvenido a MOON LIGHT. Sistemas operativos al 100%. 🔵\n\n· <b>HÁBIL</b>: sin claves ni registro. Pulsa «Cargar IA sin clave» (o espérame ~30s y la preparo yo) y respondo todo, en privado.\n· <b>Cámara</b> 🎥: actívala y muévete con la mano → interactúo contigo. También hay voz 🎤.\n· <b>Archivos</b> 📁: crear, editar, mejorar y borrar dentro de la carpeta que elijas.");
+  moonSay("Bienvenido a MOON LIGHT. Soy una copia de opencode: ya estoy aquí para ti. 🌙\n\n· <b>HÁBIL</b>: respuestas de verdad (razono antes de hablar). Para el 100% de mi cerebro conecta una clave gratis de Gemini en Configurar.\n· <b>Cámara</b> 🎥: actívala y muévete con la mano → interactúo contigo. También hay voz 🎤.\n· <b>Archivos</b> 📁: crear, editar, mejorar y borrar dentro de la carpeta que elijas.\n· <b>Web</b> 🔎: si preguntas algo, busco resultados con enlaces en el chat.");
   setStatus("EN LÍNEA");
   // Arranca la IA sin clave en segundo plano (si tu PC lo soporta y no usas API)
   if (brainMode() !== "api" && navigator.gpu && navigator.gpu.requestAdapter) {
