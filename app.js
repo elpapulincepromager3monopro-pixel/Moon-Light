@@ -336,9 +336,7 @@
     if (brainMode() === "api") {
       try { return await callConfigured(history); }
       catch (e) {
-        moonSay("⚠️ Tu API no respondió (" + esc(e.message) + "). Uso la nube gratuita.");
-        const p = await callPuter(history);
-        if (p) return p;
+        moonSay("⚠️ Tu API no respondió (" + esc(e.message) + "). Pruebo con la IA local o el buscador.");
         const ok = await loadBrowserBrain(true);
         if (ok) { try { return await webllmChat(history); } catch {} }
         return null;
@@ -347,9 +345,7 @@
     if (engineState.ready) {
       try { const r = await webllmChat(history); if (r) return r; } catch {}
     }
-    const cloud = await callPuter(history);
-    if (cloud) return cloud;
-    return null; // cerebro local (offline)
+    return null; // cerebro local (buscador + matemáticas) — sin ventanas emergentes
   }
 
   const history = [
@@ -720,11 +716,27 @@
       apiState.innerHTML = "🧠 IA local lista: sin clave, privada y sin internet.";
       $("statMode").textContent = "LOCAL IA";
     } else {
-      apiState.innerHTML = "🧠 Sin clave: cuando preguntas busco en la web (🔎 resultados) o uso IA local. Para conversación de IA real conecta una clave gratis en «Configurar».";
-      $("statMode").textContent = "NUBE IA";
+      apiState.innerHTML = "🧠 Sin clave: respondo con mi cerebro (matemáticas, personalidad y buscador web con enlaces). ¿IA real? Conecta Gemini gratis en «Configurar» o usa el botón «Conectar nube IA gratis».";
+      $("statMode").textContent = "LOCAL";
     }
   }
   $("btnLocalBrain").addEventListener("click", () => loadBrowserBrain(false));
+  $("btnPuter").addEventListener("click", async () => {
+    const btn = $("btnPuter");
+    btn.disabled = true;
+    btn.textContent = "Conectando… (si sale una ventana, permítela una vez)";
+    const r = await callPuter([...history, { role: "user", content: "Hola, di solo 'conectado'" }]);
+    btn.disabled = false;
+    if (r) {
+      btn.textContent = "✔ Nube IA conectada";
+      $("localBrainText").textContent = "Nube IA conectada: respondo con inteligencia real (Puter, gratis).";
+      moonSay("🌐 Nube IA gratuita conectada. A partir de ahora respondo con IA real al hacerte caso.");
+      updateApiState();
+    } else {
+      btn.textContent = "🌐 Conectar nube IA gratis (Puter)";
+      $("localBrainText").textContent = "No conectó: si apareció una pestaña, permítela y vuelve a pulsar. Si no, tu navegador la bloquea; sigo con mi cerebro + buscador web.";
+    }
+  });
   $("modelPick").addEventListener("change", () => {
     localStorage.setItem("jarvis.localmodel", $("modelPick").value);
     if (engineState.ready) {
@@ -793,20 +805,13 @@
     setTimeout(() => { $("localBrainText").textContent = "Preparando la IA local… (descarga única)"; loadBrowserBrain(true); }, 1500);
   } else if (brainMode() !== "api") {
     setTimeout(() => {
-      $("localBrainText").textContent = "Tu navegador no detecta WebGPU (usa Chrome reciente). Uso la nube IA gratuita; si falla, enciclopedia + Google.";
+      $("localBrainText").textContent = "Tu navegador no detecta WebGPU (usa Chrome reciente). Respondo con mi cerebro + buscador web; si quieres IA real, conecta Gemini gratis en «Configurar».";
     }, 1500);
   }
-  // Comprueba que la nube IA gratuita cargó realmente; si no, reintenta descargarla
+  // Comprueba que la nube IA gratuita cargó realmente (solo informa, sin ventanas)
   setTimeout(() => {
-    if (brainMode() !== "api" && !(window.puter && window.puter.ai && window.puter.ai.chat) && !$("localBrainText").dataset.warned) {
-      $("localBrainText").dataset.warned = "1";
-      const s = document.createElement("script");
-      s.src = "https://js.puter.com/v2/";
-      s.onload = () => { if (window.puter && window.puter.ai) { $("localBrainText").textContent = "Nube IA conectada ✓ (respuestas con inteligencia real)"; } };
-      s.onerror = () => {
-        $("localBrainText").textContent = "⚠️ Tu navegador/red bloquea la nube IA gratuita. Prueba con Internet normal o conecta una clave gratis (Gemini) en «Configurar». Mientras tanto respondo con mi personalidad + buscador web.";
-      };
-      document.head.appendChild(s);
+    if (brainMode() !== "api" && !(window.puter && window.puter.ai && window.puter.ai.chat)) {
+      $("localBrainText").textContent = "La nube IA gratuita no está disponible en tu navegador (¿bloqueador?). Igual respondo con mi cerebro: matemáticas, personalidad y buscador web.";
     }
   }, 4000);
 })();
