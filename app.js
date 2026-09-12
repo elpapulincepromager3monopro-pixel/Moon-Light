@@ -82,27 +82,35 @@
     .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
     .replace(/\s+/g, " ").trim();
   async function wikiSummary(query) {
-    const clean = query.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/^(que es|que significa|que quiere decir|explicame|explica|dime|resume|como es|busca|buscar|palabra|definicion de|que son|cual es|cuales son|por que|quien fue|que fue)\s+/i, "");
+    const clean = query.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/^(que es|que significa|que quiere decir|explicame|explica|dime|resume|como es|busca|buscar|palabra|definicion de|que son|cual es|cuales son|por que|quien fue|que fue|cuantos|cuales|dime las caracteristicas)\s+/i, "");
+    if (!clean) return null;
     const r = await fetchWithTimeout(`https://es.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(clean)}&format=json&origin=*&utf8=1&srlimit=5`, {}, 9000);
     const j = await r.json();
     const hits = j.query?.search || [];
     if (!hits.length) return null;
-    // Get extracts for top 3 results in parallel
     const titles = hits.slice(0, 3).map((h) => h.title);
     let extracts = [];
     try {
       const eq = titles.map((t) => encodeURIComponent(t)).join("|");
-      const er = await fetchWithTimeout(`https://es.wikipedia.org/w/api.php?action=query&titles=${eq}&prop=extracts&exintro=true&explaintext=true&exchars=300&format=json&origin=*`, {}, 7000);
+      const er = await fetchWithTimeout(`https://es.wikipedia.org/w/api.php?action=query&titles=${eq}&prop=extracts&exintro=true&explaintext=true&exchars=500&format=json&origin=*`, {}, 7000);
       const ej = await er.json();
       const pages = ej.query?.pages || {};
       extracts = Object.values(pages).map((p) => ({ title: p.title, extract: p.extract || "" }));
     } catch {}
-    const results = hits.slice(0, 5).map((h, i) => {
-      const ext = extracts.find((e) => e.title === h.title);
-      const snippet = ext ? ext.extract : stripHtml(h.snippet);
-      return `**${i + 1}. ${h.title}**\n   ${snippet.slice(0, 180)}${snippet.length > 180 ? "…" : ""}`;
-    });
-    return `🔍 *Resultados de búsqueda para «${stripHtml(clean)}»:*\n\n${results.join("\n\n")}\n\n🔗 *Abrir más resultados en Google:* [[GOOGLE:${query.trim().slice(0, 80)}]]`;
+    const get = (h) => {
+      const e = extracts.find((x) => x.title === h.title);
+      return e ? e.extract : stripHtml(h.snippet);
+    };
+    const first = get(hits[0]);
+    if (!first) return null;
+    const cut = (s, n) => (s.length > n ? s.slice(0, n) + "…" : s);
+    let out = `📘 *${hits[0].title}*\n\n${cut(first, 420)}`;
+    if (hits[1]) {
+      const second = get(hits[1]);
+      if (second) out += `\n\n📚 *${hits[1].title}*: ${cut(second, 150)}`;
+    }
+    out += `\n\nSi quieres más detalle o algo más concreto, dímelo y te lo busco en la web. [[GOOGLE:${query.trim().slice(0, 80)}]]`;
+    return out;
   }
 
   const KB = [
@@ -117,7 +125,74 @@
     { t: /(chiste|broma|algo gracioso)/, r: "¿Por qué la IA no va a la playa? Porque le da miedo la red neuronal… ¡perdón, eran bytes de más! 😄" },
     { t: /(gracias|te amo|te quiero)/, r: "¡A ti, bro! Por eso cierro con un guiño dorado: estoy para ayudarte." }
   ];
-  function ownAnswer(q) {
+  function factsAnswer(q) {
+  const FACTS = [
+    { t: /huesos/, r: "El cuerpo humano adulto tiene 206 huesos (los bebés nacen con ~300, muchos se fusionan al crecer)." },
+    { t: /musculos/, r: "El cuerpo humano tiene unos 650 músculos, y el más fuerte (proporcional) es el masetero de la mandíbula." },
+    { t: /dientes/, r: "Un adulto tiene 32 dientes (4 muelas del juicio incluidas); los niños tienen 20 de leche." },
+    { t: /litros de sangre|cantidad de sangre|cambra de sangre/, r: "Un adulto tiene unos 5 litros de sangre (aprox. 7-8% de tu peso)." },
+    { t: /veces late el corazon|latidos.*corazon|cuantas veces late/, r: "El corazón late unas 100.000 veces al día (unos 60-100 por minuto en reposo), bombando ~7.500 litros de sangre al día." },
+    { t: /capacidad.*pulmones|litros.*pulmones/, r: "Los pulmones tienen una capacidad total de unos 5-6 litros; en una respiración normal entran ~0,5 L." },
+    { t: /neuronas|cerebro.*cuantas|peso.*cerebro|tamano.*cerebro/, r: "El cerebro adulto pesa unos 1,3-1,4 kg y tiene aproximadamente 86.000 millones de neuronas." },
+    { t: /cuanta agua.*(tiene|tiene el cuerpo|hay en el cuerpo)|\d+%.*agua/, r: "El cuerpo humano adulto está formado por un 60% de agua aproximadamente." },
+    { t: /grupos sanguineos|tipos de sangre|tipo de sangre/, r: "Hay 4 grupos principales (A, B, AB, 0) con factor Rh + o -, es decir 8 en total." },
+    { t: /planetas.*(sistema solar)?|cuantos planetas (hay|existen|tiene el sistema solar)/, r: "El sistema solar tiene 8 planetas: Mercurio, Venus, Tierra, Marte, Júpiter, Saturno, Urano y Neptuno." },
+    { t: /planeta mas grande|mas grande del sistema/, r: "El planeta más grande del sistema solar es Júpiter (más de 1.300 Tierras caben dentro)." },
+    { t: /planeta mas cercano al sol/, r: "El planeta más cercano al Sol es Mercurio; el más lejano es Neptuno." },
+    { t: /cuando se creo la tierra|edad de la tierra|antiguedad de la tierra/, r: "La Tierra se formó hace unos 4.540 millones de años." },
+    { t: /distancia de la tierra al sol|cuanto esta la tierra del sol/, r: "La Tierra está a unos 149,6 millones de km del Sol (1 unidad astronómica)." },
+    { t: /(tierra tiene|porcentaje de).*agua|superficie de la tierra/, r: "El 71% de la superficie de la Tierra está cubierta de agua; la tierra firme es el 29%." },
+    { t: /cuantas lunas.*tierra|tiene la tierra.*lunas/, r: "La Tierra tiene 1 luna natural. Marte tiene 2, Júpiter casi 100 y Saturno más de 140." },
+    { t: /montana mas alta|pico mas alto/, r: "La montaña más alta del mundo es el Everest, con 8.849 m sobre el nivel del mar." },
+    { t: /rio mas (largo|caudaloso|grande)/, r: "El río más largo del mundo es el Amazonas (unos 7.000 km, el Nilo es muy parecido). El más caudaloso también es el Amazonas." },
+    { t: /oceano mas (grande|profundo)/, r: "El océano más grande es el Pacífico (ocupa un tercio de la superficie de la Tierra) y también el más profundo: la Fosa de las Marianas (~11 km)." },
+    { t: /desierto mas grande/, r: "El desierto más grande del mundo (cálido) es el Sahara; si contamos desiertos polares, la Antártida es el mayor." },
+    { t: /pais mas grande del mundo|mayor pais del mundo/, r: "El país más grande del mundo es Rusia (unos 17,1 millones de km²)." },
+    { t: /capital de espana/, r: "La capital de España es Madrid. Otros datos: Barcelona es la segunda ciudad más poblada." },
+    { t: /capital de (mexico|mejico)/, r: "La capital de México es la Ciudad de México (CDMX)." },
+    { t: /capital de (argentina|venezuela|colombia|chile|peru|uruguay|ecuador|bolivia|paraguay|panama|cuba|republica dominicana|guatemala|honduras|el salvador|nicaragua|costarica|portugal|francia|italia|inglaterra|reino unido|alemania|japon|china|rusia|brasil)/, r: "Déjame decirte la capital según el país: Argentina→Buenos Aires, Colombia→Bogotá, Venezuela→Caracas, Chile→Santiago, Perú→Lima, Uruguay→Montevideo, Ecuador→Quito, Bolivia→La Paz/Sucre, Paraguay→Asunción, Panamá→Panamá, Cuba→La Habana, México→CDMX, España→Madrid, Portugal→Lisboa, Francia→París, Italia→Roma, Reino Unido→Londres, Alemania→Berlín, Japón→Tokio, China→Pekín, Rusia→Moscú, Brasil→Brasilia, Costa Rica→San José. ¿De cuál fue?" },
+    { t: /poblacion de españa/, r: "España tiene unos 48,3 millones de habitantes (2024)." },
+    { t: /poblacion de (mexico|argentina|colombia|venezuela|chile|peru|brasil|uruguay|chile)/, r: "Aproximado: México ~130M, Brasil ~216M, Colombia ~52M, Argentina ~46M, Venezuela ~28M, Perú ~34M, Chile ~19,8M, Uruguay ~3,4M. ¿De cuál querías el dato exacto?" },
+    { t: /segunda guerra mundial|cual fue la 2 guerra|segunda guerra/, r: "La 2ª Guerra Mundial fue de 1939 a 1945 (empezó con la invasión de Polonia y terminó con rendición de Japón)." },
+    { t: /primera guerra mundial|1 guerra mundial/, r: "La 1ª Guerra Mundial se libró de 1914 a 1918." },
+    { t: /titanic|hundio/, r: "El Titanic se hundió el 15 de abril de 1912, cuatro días después de empezar su viaje." },
+    { t: /cuando llego el hombre a la luna|llegada a la luna|quien llego primero a la luna/, r: "El hombre llegó a la Luna el 20 de julio de 1969: misión Apolo 11, con Neil Armstrong y Buzz Aldrin." },
+    { t: /quien invento la bombilla?/, r: "Thomas Edison popularizó la bombilla (patentó la incandescente práctica en 1879)." },
+    { t: /quien fue (einstein|albert einstein)/, r: "Albert Einstein (1879-1955) fue físico, autor de la teoría de la relatividad y de la famosa E=mc². Premio Nobel 1921." },
+    { t: /quien pinto la mona lisa|mona lisa/, r: "La Mona Lisa la pintó Leonardo da Vinci (entre 1503 y 1506) y está en el Louvre, París." },
+    { t: /quien escribio (cien anos|100 anos de soledad|don quijote|romeo y julieta|el principito)/, r: "Cien años de soledad: Gabriel García Márquez. Don Quijote: Miguel de Cervantes. Romeo y Julieta: Shakespeare. El Principito: Antoine de Saint-Exupéry." },
+    { t: /e=mc2|e=mc\^2|relatividad/, r: "La famosa ecuación E=mc² de Einstein significa que la energía equivale a la masa por la velocidad de la luz al cuadrado." },
+    { t: /cuanto es pi|numeros de pi|valor de pi/, r: "Pi vale 3,1415926535… (los decimales no terminan nunca)." },
+    { t: /velocidad.*luz|cuanto viaja la luz/, r: "La luz viaja a unos 299.792 km/s (casi 300.000 km/s). En un año recorre un año-luz." },
+    { t: /velocidad del sonido/, r: "El sonido viaja a unos 343 m/s en el aire (a temperatura ambiente); más rápido en el agua y en el metal." },
+    { t: /gravedad.*(tierra)?/, r: "La gravedad en la superficie de la Tierra es de unos 9,81 m/s²." },
+    { t: /como se llama el agua.*(quimica|formula)|formula del agua|que es h2o|quiere decir h2o/, r: "El agua es H2O: dos átomos de hidrógeno y uno de oxígeno." },
+    { t: /cuanto mide.*genoma|cuantos genes.*humano/, r: "El genoma humano tiene unos 20.000-25.000 genes que codifican proteínas." },
+    { t: /cuanto mide el intestino|intestino delgado largo|cuanto mide el intestino delgado/, r: "El intestino delgado mide unos 6-7 metros en un adulto." },
+    { t: /cuantas (capas|piel).*hay|capas de la piel/, r: "La piel tiene 3 capas principales: epidermis, dermis e hipodermis." },
+    { t: /cuantas horas.*dia|cuantas horas tiene el dia|por que el dia tiene 24/, r: "Un día tiene 24 horas (la Tierra tarda ~24h en girar sobre sí misma)." },
+    { t: /cuantos (minutos|segundos).*(hora|dia)/, r: "Una hora tiene 60 minutos (3.600 s) y un día 24 horas = 1.440 minutos." },
+    { t: /cuantos meses.*ano/, r: "Un año tiene 12 meses: ene, feb, mar, abr, may, jun, jul, ago, sep, oct, nov, dic." },
+    { t: /cuantas semanas.*ano/, r: "Un año tiene 52 semanas y un día (52 semanas y 2 en los bisiestos)." },
+    { t: /jugadores.*futbol|equipo de futbol|cuantas personas.*equipo.*futbol/, r: "En fútbol cada equipo tiene 11 jugadores en el campo (incluido el portero)." },
+    { t: /cuanto dura.*(partido|campeonato)*futbol/, r: "Un partido de fútbol dura 90 minutos (dos tiempos de 45) más descuentos y prórrogas si los hay." },
+    { t: /quien gano el mundial/, r: "Depende de cuál: Argentina (Qatar 2022), Francia 2018, Alemania 2014, España 2010, Italia 2006, Brasil 2002. El país con más Copas es Brasil (5)." },
+    { t: /cuantos anillos.*rayo|cuantos anillos tiene saturno/, r: "Saturno tiene cientos de anillos (miles de anillitos) compuestos de hielo y roca." },
+    { t: /cuantos continentes/, r: "Hay 6 continentes (modelo común): África, América, Antártida, Asia, Europa y Oceanía (7 si cuentas América separada en Norte y Sur)." },
+    { t: /cuantas estrellas.*vias lactea/, r: "La Vía Láctea tiene entre 100.000 y 400.000 millones de estrellas (no se sabe con precisión)." },
+    { t: /cuantos anos tiene el universo|edad del universo/, r: "El universo tiene unos 13.800 millones de años (big bang)." },
+    { t: /cuantos anos tiene el sol|edad del sol/, r: "El Sol tiene unos 4.600 millones de años; le queda combustible para otros ~5.000 millones." },
+    { t: /cual es el animal mas (grande|rapido|alto)|animal mas grande/, r: "El animal más grande es la ballena azul (hasta 30 m y 150-180 toneladas). El más rápido: el halcón peregrino en picada." },
+    { t: /cuanto corre un (guepardo|cheetah|leopardo)/, r: "El guepardo alcanza ~100-120 km/h en distancias cortas: es el animal terrestre más rápido." },
+    { t: /cuanto mide la torre eiffel/, r: "La Torre Eiffel mide 330 m con antena (300 sin ella) y fue construida en 1889." },
+    { t: /cuantos años duran los estudios de medicina|cuanto dura la carrera de medicina/, r: "La carrera de medicina en España dura 6 años (más especialización MIR: 4-5 años más)." },
+    { t: /cuanto cuesta un ips.*ps5|precio de la ps5/, r: "La PS5 ronda los 500-550 € de base (ediciones digitales algo menos). El precio varía según ofertas." }
+  ];
+  for (const item of FACTS) if (item.t.test(q)) return item.r;
+  return null;
+}
+
+function ownAnswer(q) {
     for (const item of KB) if (item.t.test(q)) return item.r;
     return null;
   }
@@ -168,7 +243,7 @@
     if (w) return w;
 
     if (state.msgCount <= 1 && /(hola|buenas|hey|saludos)/.test(q))
-      return "Buenas. MOON LIGHT a tu servicio. Estoy respondiendo con mi nube gratuita sin clave; si se cae, uso IA en tu navegador o mi enciclopedia local.";
+      return "Buenas. MOON LIGHT a tu servicio. Respondo directo: matemáticas, cultura general y buscador web con enlaces. Si quieres IA real que responda lo que sea, pulsa «Configurar» y conéctame una clave gratis de Gemini.";
 
     const math = evalMath(qRaw);
     if (math !== null) return `El resultado es: ${String(math).replace(".", ",")}.`;
@@ -185,13 +260,17 @@
     const own = ownAnswer(q);
     if (own) return own;
 
-    const web = await webSearchServer(qRaw);
-    if (web) return web;
+    const fact = factsAnswer(q);
+    if (fact) return fact;
 
+    // Modo respuesta: la enciclopedia me da un texto-resumen directo, no una lista
     const wiki = await wikiSummary(qRaw);
     if (wiki) return wiki;
 
-    return "No tengo señal para la nube IA en este momento ni resultados web. Te busco tu pregunta directamente en Google. [[GOOGLE:" + qRaw.trim().slice(0, 80) + "]]";
+    const web = await webSearchServer(qRaw);
+    if (web) return web;
+
+    return "No lo encontré en mi memoria, mi enciclopedia ni la web. Te lo busco en Google. [[GOOGLE:" + qRaw.trim().slice(0, 80) + "]]";
   }
 
   // ---------- Motor de IA (tu API opcional → IA en tu navegador sin clave → nube gratuita → cerebro local) ----------
