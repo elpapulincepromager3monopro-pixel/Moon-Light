@@ -126,14 +126,37 @@
     return "No tengo señal para la nube IA en este momento. Te busco en Google el tema o pruebo con mi enciclopedia. [[GOOGLE:" + qRaw.trim().slice(0, 80) + "]]";
   }
 
-  // ---------- Motor de IA (tu API opcional → IA en tu navegador sin clave → cerebro local) ----------
+  // ---------- Motor de IA (tu API opcional → IA en tu navegador sin clave → nube gratuita → cerebro local) ----------
+  const PROVIDERS = {
+    gemini:    { name: "Google Gemini",   type: "openai",    base: "https://generativelanguage.googleapis.com/v1beta/openai/", model: "gemini-2.0-flash",   models: ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash", "gemini-2.5-flash"], info: "Clave GRATIS: entra a aistudio.google.com/apikey → Create API key, copia y pégala abajo. Modelo: gemini-2.0-flash." },
+    nvidia:    { name: "NVIDIA NIM",       type: "openai",    base: "https://integrate.api.nvidia.com/v1", model: "nvidia/nemotron-4-340b-instruct", models: ["nvidia/nemotron-4-340b-instruct", "mistralai/mistral-large-2-instruct", "meta/llama-3.1-70b-instruct"], info: "Clave GRATIS: entra a create.nvidia.com → Build (o Login) → Get API Key → copia la clave «nvapi-…». (Para este videojuego usa la API de producción: integrate.api.nvidia.com ↔ Dev API no le llama a este URL)." },
+    openrouter: { name: "OpenRouter",      type: "openai",    base: "https://openrouter.ai/api/v1", model: "openrouter/auto", models: ["openrouter/auto", "deepseek/deepseek-chat", "meta-llama/llama-3.3-70b-instruct", "anthropic/claude-3.5-sonnet", "openai/gpt-4o-mini"], info: "Clave GRATIS: entra a openrouter.ai → Create account → Keys → Create Key. Da acceso a OpenAI, Claude y todos, incluso modelos gratis." },
+    groq:      { name: "Groq",             type: "openai",    base: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile", models: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"], info: "Clave GRATIS: entra a console.groq.com/keys → Create API Key. Muy rápida." },
+    cerebras:  { name: "Cerebras",         type: "openai",    base: "https://api.cerebras.ai/v1", model: "llama-3.3-70b", models: ["llama-3.3-70b", "llama-3.3-8b"], info: "Clave GRATIS: entra a cloud.cerebras.ai → API Keys → Create. La más veloz del mundo." },
+    openai:    { name: "OpenAI",           type: "openai",    base: "https://api.openai.com/v1", model: "gpt-4o-mini", models: ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"], info: "De pago: platform.openai.com → API keys. Necesita saldo." },
+    claude:    { name: "Claude (Anthropic)", type: "anthropic", base: "https://api.anthropic.com", model: "claude-3-5-haiku-20241022", models: ["claude-3-5-haiku-20241022", "claude-sonnet-4-20250514"], info: "De pago: console.anthropic.com → API Keys. Necesita saldo." },
+    custom:    { name: "Personalizado",    type: "openai",    base: "", model: "", models: [], info: "Indica la URL base OpenAI-compatible, el modelo y tu clave." }
+  };
+
   function getConfig() {
-    try { return JSON.parse(localStorage.getItem("jarvis.api") || "null"); }
-    catch { return null; }
+    try {
+      const c = JSON.parse(localStorage.getItem("jarvis.api") || "null");
+      if (!c) return null;
+      if (c.provider) return c;
+      if (c.base && c.model && c.key) { // config antigua → convertir
+        const p = Object.values(PROVIDERS).find((x) => x.type === "openai" && x.base.replace(/\/$/, "") === c.base.replace(/\/$/, ""));
+        return { provider: p ? Object.keys(PROVIDERS).find((k) => PROVIDERS[k] === p) : "custom", base: c.base, model: c.model, key: c.key };
+      }
+      return null;
+    } catch { return null; }
   }
   function brainMode() {
     const cfg = getConfig();
-    return (cfg && cfg.key && cfg.base && cfg.model) ? "api" : "local";
+    return (cfg && cfg.key && cfg.model) ? "api" : "local";
+  }
+  function effBase(cfg) {
+    const p = PROVIDERS[cfg.provider];
+    return (cfg.provider === "custom" && cfg.base) ? cfg.base.replace(/\/$/, "") : (p ? p.base.replace(/\/$/, "") : (cfg.base || "").replace(/\/$/, ""));
   }
 
   async function fetchWithTimeout(url, opts, ms = 30000) {
@@ -144,14 +167,27 @@
   }
 
   // Tu API (opcional, si configuraste clave)
+  async function callClaude(cfg, history) {
+    const system = history.filter((m) => m.role === "system").map((m) => m.content).join("\n");
+    const messages = history.filter((m) => m.role !== "system").map((m) => ({ role: m.role, content: m.content }));
+    const res = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": cfg.key, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({ model: cfg.model, max_tokens: 2048, system: system || undefined, messages })
+    }, 45000);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const j = await res.json();
+    return j.content?.[0]?.text || null;
+  }
   async function callConfigured(history) {
     const cfg = getConfig();
+    if (PROVIDERS[cfg.provider]?.type === "anthropic") return callClaude(cfg, history);
     const body = { model: cfg.model, messages: history, temperature: 0.6, max_tokens: 2048 };
-    const res = await fetchWithTimeout(cfg.base.replace(/\/$/, "") + "/chat/completions", {
+    const res = await fetchWithTimeout(effBase(cfg) + "/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.key}` },
       body: JSON.stringify(body)
-    });
+    }, 45000);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const j = await res.json();
     return j.choices?.[0]?.message?.content || null;
@@ -569,20 +605,33 @@
   $("btnCloseEditor").addEventListener("click", () => $("editorModal").classList.add("hidden"));
 
   // ---------- API / Nube ----------
-  const provider = $("apiProvider"), customWrap = $("customWrap"), baseI = $("apiBase"), modelI = $("apiModel"), keyI = $("apiKey");
-  provider.addEventListener("change", () => {
-    customWrap.classList.toggle("hidden", provider.value !== "custom");
-    if (provider.value === "https://integrate.api.nvidia.com/v1") modelI.value = modelI.value || "nvidia/nemotron-3-ultra-550b-a55b";
-    if (provider.value === "https://openrouter.ai/api/v1") modelI.value = modelI.value || "nvidia/nemotron-3-ultra-550b-a55b";
-    if (provider.value === "https://api.openai.com/v1") modelI.value = modelI.value || "gpt-4o-mini";
-  });
+  const provider = $("apiProvider"), customWrap = $("customWrap"), baseI = $("apiBase"), modelI = $("apiModel"), keyI = $("apiKey"), apiInfo = $("apiInfo"), modelList = $("modelList");
+  function applyProvider(fromCfg) {
+    const v = provider.value;
+    const p = PROVIDERS[v];
+    customWrap.classList.toggle("hidden", v !== "custom");
+    if (p) {
+      modelList.innerHTML = p.models.map((m) => `<option value="${esc(m)}"></option>`).join("");
+      if (fromCfg && fromCfg.model) modelI.value = fromCfg.model;
+      else modelI.value = p.model;
+      apiInfo.textContent = (v === "gemini" || v === "nvidia" || v === "openrouter" || v === "groq" || v === "cerebras") ? ("⬇ " + p.info) : p.info;
+      apiInfo.style.color = (v === "gemini" || v === "nvidia" || v === "openrouter" || v === "groq" || v === "cerebras") ? "var(--green, #7dff9e)" : "";
+    } else {
+      modelList.innerHTML = "";
+      apiInfo.textContent = "Elige un motor para ver cómo conseguir su clave (2 minutos, gratis en la mayoría).";
+    }
+    if (v !== "custom" && p && p.base) baseI.value = p.base;
+  }
+  provider.addEventListener("change", () => applyProvider(false));
   $("btnApi").addEventListener("click", () => {
     const cfg = getConfig();
     if (cfg) {
-      provider.value = ["https://integrate.api.nvidia.com/v1", "https://openrouter.ai/api/v1", "https://api.openai.com/v1"].includes(cfg.base) ? cfg.base : "custom";
-      customWrap.classList.toggle("hidden", provider.value !== "custom");
-      baseI.value = cfg.base; modelI.value = cfg.model; keyI.value = cfg.key;
+      provider.value = PROVIDERS[cfg.provider] ? cfg.provider : "custom";
+      baseI.value = cfg.base || (PROVIDERS[cfg.provider] ? PROVIDERS[cfg.provider].base : "");
+      modelI.value = cfg.model;
+      keyI.value = cfg.key;
     }
+    applyProvider(!!cfg);
     $("apiModal").classList.remove("hidden");
   });
   $("btnCloseApi").addEventListener("click", () => $("apiModal").classList.add("hidden"));
@@ -590,7 +639,8 @@
   function updateApiState() {
     const cfg = getConfig();
     if (cfg && cfg.key && cfg.model) {
-      apiState.innerHTML = `🌐 Motor: <b>${esc(cfg.model)}</b><br/>Con tu clave personal.`;
+      const nm = PROVIDERS[cfg.provider] ? PROVIDERS[cfg.provider].name : "Personalizado";
+      apiState.innerHTML = `🌐 Motor: <b>${esc(cfg.model)}</b> (${esc(nm)})<br/>Con tu clave personal.`;
       $("statMode").textContent = "API";
     } else if (engineState.ready) {
       apiState.innerHTML = "🧠 IA local lista: sin clave, privada y sin internet.";
@@ -610,23 +660,32 @@
     }
   });
   $("btnSaveApi").addEventListener("click", () => {
-    const base = provider.value === "custom" ? baseI.value.trim() : provider.value;
-    if (!base || !modelI.value.trim()) { alert("Completa la URL y el modelo."); return; }
-    localStorage.setItem("jarvis.api", JSON.stringify({ base, model: modelI.value.trim(), key: keyI.value.trim() }));
+    const p = provider.value;
+    if (!p) { alert("Elige primero un motor de IA."); return; }
+    if (!modelI.value.trim()) { alert("Completa el modelo."); return; }
+    const base = p === "custom" ? baseI.value.trim() : PROVIDERS[p].base;
+    if (!base) { alert("Completa la URL base."); return; }
+    localStorage.setItem("jarvis.api", JSON.stringify({ provider: p, base, model: modelI.value.trim(), key: keyI.value.trim() }));
     updateApiState();
     $("apiModal").classList.add("hidden");
+    moonSay("✅ Motor configurado: <b>" + esc(modelI.value.trim()) + "</b>. Ya respondo con él.");
   });
   $("btnTestApi").addEventListener("click", async () => {
-    const cfg = { base: (provider.value === "custom" ? baseI.value.trim() : provider.value), model: modelI.value.trim(), key: keyI.value.trim() };
-    if (!cfg.base || !cfg.model || !cfg.key) { alert("Completa URL, modelo y clave."); return; }
+    const p = provider.value;
+    const cfg = { provider: p, base: (p === "custom" ? baseI.value.trim() : PROVIDERS[p]?.base || ""), model: modelI.value.trim(), key: keyI.value.trim() };
+    if (!p || !cfg.model || !cfg.key) { alert("Completa motor, modelo y clave."); return; }
     $("btnTestApi").textContent = "Probando…";
     try {
-      const r = await fetch(cfg.base.replace(/\/$/, "") + "/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.key}` },
-        body: JSON.stringify({ model: cfg.model, messages: [{ role: "user", content: "Responde solo OK" }], max_tokens: 5 })
-      });
-      if (!r.ok) throw new Error("HTTP " + r.status);
+      if (PROVIDERS[p]?.type === "anthropic") {
+        await callClaude(cfg, [{ role: "user", content: "Responde solo: OK" }]);
+      } else {
+        const r = await fetch(effBase(cfg) + "/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.key}` },
+          body: JSON.stringify({ model: cfg.model, messages: [{ role: "user", content: "Responde solo OK" }], max_tokens: 5 })
+        });
+        if (!r.ok) throw new Error("HTTP " + r.status + " " + (await r.text()).slice(0, 120));
+      }
       alert("✔ Conexión exitosa. MOON LIGHT está en línea.");
     } catch (e) {
       alert("✘ Fallo: " + e.message);

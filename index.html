@@ -133,20 +133,26 @@
   <div class="modal hidden" id="apiModal">
     <div class="modalBox">
       <div class="panelHead"><h2>CONFIGURAR CEREBRO</h2><button class="danger" id="btnCloseApi">Cerrar</button></div>
-      <label>Proveedor (URL base OpenAI-compatible)
+      <label>Motor de IA (elige y pega tu clave)
         <select id="apiProvider">
-          <option value="">-- Selecciona --</option>
-          <option value="https://integrate.api.nvidia.com/v1">NVIDIA NIM</option>
-          <option value="https://openrouter.ai/api/v1">OpenRouter</option>
-          <option value="https://api.openai.com/v1">OpenAI</option>
+          <option value="">-- Selecciona motor --</option>
+          <option value="gemini">Google Gemini (clave gratis)</option>
+          <option value="nvidia">NVIDIA NIM (clave gratis)</option>
+          <option value="openrouter">OpenRouter (clave gratis)</option>
+          <option value="groq">Groq (clave gratis)</option>
+          <option value="cerebras">Cerebras (clave gratis)</option>
+          <option value="openai">OpenAI GPT (de pago)</option>
+          <option value="claude">Claude de Anthropic (de pago)</option>
           <option value="custom">Personalizado</option>
         </select>
       </label>
-      <label id="customWrap" class="hidden">URL base propia
+      <div class="hint" id="apiInfo">Elige un motor para ver cómo conseguir su clave (son 2 minutos y gratis en la mayoría).</div>
+      <label id="customWrap" class="hidden">URL base (OpenAI-compatible)
         <input id="apiBase" placeholder="https://mi-servidor:8000/v1" />
       </label>
       <label>Modelo
-        <input id="apiModel" placeholder="p.ej. nvidia/nemotron-3-ultra-550b-a55b" />
+        <input id="apiModel" list="modelList" placeholder="p.ej. gemini-2.0-flash" />
+        <datalist id="modelList"></datalist>
       </label>
       <label>Clave API
         <input id="apiKey" type="password" placeholder="sk-..." />
@@ -154,9 +160,9 @@
       <div class="rowBtns">
         <button class="primary" id="btnSaveApi">Guardar</button>
         <button class="ghost" id="btnTestApi">Probar conexión</button>
-        <button class="ghost" id="btnClearApi">Usar modo local</button>
+        <button class="ghost" id="btnClearApi">Usar modo sin clave</button>
       </div>
-      <div class="hint">La clave se guarda solo en tu navegador. Sin clave, MOON LIGHT usa su cerebro local.</div>
+      <div class="hint">La clave se guarda solo en tu navegador (nunca se publica). Sin clave, MOON LIGHT usa su nube gratuita e IA local.</div>
     </div>
   </div>
 
