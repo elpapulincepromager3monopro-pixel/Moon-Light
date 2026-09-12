@@ -48,6 +48,7 @@
       <div class="chat" id="chat"></div>
       <div class="composer">
         <textarea id="input" rows="1" placeholder="Habla con MOON LIGHT..." ></textarea>
+        <button class="primary" id="btnGoogle" title="Buscar tu pregunta en Google">🔎</button>
         <button class="primary" id="btnMic" title="Comando de voz">🎤</button>
         <button class="primary" id="btnSend">ENVIAR</button>
       </div>
@@ -105,7 +106,7 @@
             <option value="Qwen2.5-1.5B-Instruct-q4f16_1-MLC" selected>Básico (1.5B · ~1.2GB)</option>
           </select>
         </label>
-        <div class="hint" id="localBrainText">La IA sin clave se descarga una sola vez y corre 100% en tu navegador (privada, sin servidores). Requiere Chrome con WebGPU.</div>
+        <div class="hint" id="localBrainText">Sin clave: cuando preguntas, busco en la web y te doy resultados + resumen, o IA en tu navegador. Si quieres conversación de IA real, conecta una clave gratis (Gemini) con «Configurar».</div>
         <div class="cloudStats">
           <div><span id="statMode">LOCAL</span><small>motor</small></div>
           <div><span id="statUptime">--:--</span><small>uptime</small></div>

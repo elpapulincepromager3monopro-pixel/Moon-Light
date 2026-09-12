@@ -74,17 +74,26 @@
       return out;
     } catch { return null; }
   }
+  const stripHtml = (s) => String(s || "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ").trim();
   async function wikiSummary(query) {
+    const clean = query.replace(/^(que es|qué es|que significa|qué significa|explícame|explica|dime|resume|cómo es|busca|buscar|palabra|definición de|que son|qué son)\s+/i, "");
+    const r = await fetchWithTimeout(`https://es.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(clean)}&format=json&origin=*&utf8=1&srlimit=4&srinfo=snippet`, {}, 9000);
+    const j = await r.json();
+    const hits = j.query?.search || [];
+    if (!hits.length) return null;
+    let abs = "";
     try {
-      const r = await fetch(`https://es.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*&utf8=1&srlimit=1`);
-      const j = await r.json();
-      const hit = j.query?.search?.[0];
-      if (!hit) return null;
-      const r2 = await fetch(`https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(hit.title)}`);
-      const s = await r2.json();
-      if (!s.extract) return null;
-      return `**${s.title}**\n\n${s.extract.slice(0, 700)}${s.extract.length > 700 ? "…" : ""}\n\nFuente: ${s.content_urls?.desktop?.page || ""}`;
-    } catch { return null; }
+      const s = await fetchWithTimeout(`https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(hits[0].title)}`, {}, 7000);
+      const ss = await s.json();
+      abs = ss.extract || "";
+    } catch {}
+    const list = hits.slice(0, 3).map((h, i) => `${i + 1}. ${stripHtml(h.title)}\n   ${stripHtml(h.snippet).slice(0, 140)}`).join("\n");
+    return `🔎 *Resultados para «${stripHtml(clean)}»:*\n\n${list}` +
+      (abs ? `\n\n📘 *${stripHtml(hits[0].title)}*:\n${abs.slice(0, 600)}${abs.length > 600 ? "…" : ""}` : "") +
+      `\n\nAbrir la pregunta en Google. [[GOOGLE:${query.trim().slice(0, 80)}]]`;
   }
 
   const KB = [
@@ -120,10 +129,10 @@
     const own = ownAnswer(q);
     if (own) return own;
 
-    const wiki = await wikiSummary(qRaw.replace(/^(que es|qué es|que significa|qué significa|explícame|explica|dime|resume|cómo es)\s+/i, ""));
-    if (wiki) return "📘 *Enciclopedia*\n\nSegún mi documentación y el resumen de Wikipedia, esto es lo que importa:\n" + wiki + "\n\nPara más, busca en Google lo que quieras. [[GOOGLE:" + qRaw.trim().slice(0, 80) + "]]";
+    const wiki = await wikiSummary(qRaw);
+    if (wiki) return wiki;
 
-    return "No tengo señal para la nube IA en este momento. Te busco en Google el tema o pruebo con mi enciclopedia. [[GOOGLE:" + qRaw.trim().slice(0, 80) + "]]";
+    return "No tengo señal para la nube IA en este momento ni resultados web. Te busco tu pregunta directamente en Google. [[GOOGLE:" + qRaw.trim().slice(0, 80) + "]]";
   }
 
   // ---------- Motor de IA (tu API opcional → IA en tu navegador sin clave → nube gratuita → cerebro local) ----------
@@ -322,6 +331,11 @@
   $("btnClear").addEventListener("click", () => {
     chat.innerHTML = "";
     history.length = 1;
+  });
+  $("btnGoogle").addEventListener("click", () => {
+    const q = input.value.trim();
+    if (!q) return;
+    window.open("https://www.google.com/search?q=" + encodeURIComponent(q), "_blank");
   });
 
   // ---------- Voz ----------
@@ -646,7 +660,7 @@
       apiState.innerHTML = "🧠 IA local lista: sin clave, privada y sin internet.";
       $("statMode").textContent = "LOCAL IA";
     } else {
-      apiState.innerHTML = "🧠 Sin clave: respondo ya vía mi nube gratuita (IA real, gratis). También puedes cargar la IA 100% local/privada con el botón de arriba.";
+      apiState.innerHTML = "🧠 Sin clave: cuando preguntas busco en la web (🔎 resultados) o uso IA local. Para conversación de IA real conecta una clave gratis en «Configurar».";
       $("statMode").textContent = "NUBE IA";
     }
   }
