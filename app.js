@@ -80,20 +80,26 @@
     .replace(/\s+/g, " ").trim();
   async function wikiSummary(query) {
     const clean = query.replace(/^(que es|qué es|que significa|qué significa|explícame|explica|dime|resume|cómo es|busca|buscar|palabra|definición de|que son|qué son)\s+/i, "");
-    const r = await fetchWithTimeout(`https://es.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(clean)}&format=json&origin=*&utf8=1&srlimit=4&srinfo=snippet`, {}, 9000);
+    const r = await fetchWithTimeout(`https://es.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(clean)}&format=json&origin=*&utf8=1&srlimit=5`, {}, 9000);
     const j = await r.json();
     const hits = j.query?.search || [];
     if (!hits.length) return null;
-    let abs = "";
+    // Get extracts for top 3 results in parallel
+    const titles = hits.slice(0, 3).map((h) => h.title);
+    let extracts = [];
     try {
-      const s = await fetchWithTimeout(`https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(hits[0].title)}`, {}, 7000);
-      const ss = await s.json();
-      abs = ss.extract || "";
+      const eq = titles.map((t) => encodeURIComponent(t)).join("|");
+      const er = await fetchWithTimeout(`https://es.wikipedia.org/w/api.php?action=query&titles=${eq}&prop=extracts&exintro=true&explaintext=true&exchars=300&format=json&origin=*`, {}, 7000);
+      const ej = await er.json();
+      const pages = ej.query?.pages || {};
+      extracts = Object.values(pages).map((p) => ({ title: p.title, extract: p.extract || "" }));
     } catch {}
-    const list = hits.slice(0, 3).map((h, i) => `${i + 1}. ${stripHtml(h.title)}\n   ${stripHtml(h.snippet).slice(0, 140)}`).join("\n");
-    return `🔎 *Resultados para «${stripHtml(clean)}»:*\n\n${list}` +
-      (abs ? `\n\n📘 *${stripHtml(hits[0].title)}*:\n${abs.slice(0, 600)}${abs.length > 600 ? "…" : ""}` : "") +
-      `\n\nAbrir la pregunta en Google. [[GOOGLE:${query.trim().slice(0, 80)}]]`;
+    const results = hits.slice(0, 5).map((h, i) => {
+      const ext = extracts.find((e) => e.title === h.title);
+      const snippet = ext ? ext.extract : stripHtml(h.snippet);
+      return `**${i + 1}. ${h.title}**\n   ${snippet.slice(0, 180)}${snippet.length > 180 ? "…" : ""}`;
+    });
+    return `🔍 *Resultados de búsqueda para «${stripHtml(clean)}»:*\n\n${results.join("\n\n")}\n\n🔗 *Abrir más resultados en Google:* [[GOOGLE:${query.trim().slice(0, 80)}]]`;
   }
 
   const KB = [
