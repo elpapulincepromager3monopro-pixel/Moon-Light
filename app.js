@@ -15,6 +15,8 @@
     camOn: false,
     motionOn: false,
     listening: false,
+    handsFree: false,
+    lastInputWasVoice: false,
     msgCount: 0,
     start: Date.now(),
     busy: false
@@ -59,6 +61,27 @@
       `<span class="who">code</span><pre style="background:#03101d;padding:8px;border-radius:6px;border:1px solid #0e3a5e;overflow:auto">${esc(body)}</pre>`);
     html = html.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\r?\n/g, "<br>");
     return addMsg("moon", html);
+  }
+
+  // Voz de salida: MOON LIGHT te responde hablando
+  function speak(text) {
+    if (!("speechSynthesis" in window)) return;
+    const clean = String(text || "")
+      .replace(/```[\s\S]*?```/g, "")
+      .replace(/\[\[GOOGLE:.*?\]\]/g, "")
+      .replace(/\[\[URL:[^\]]*?\|([^\]]*?)\]\]/g, "$1")
+      .replace(/\*\*(.+?)\*\*/g, "$1")
+      .replace(/[#*_`~;:,()\[\]]/g, "")
+      .replace(/^\s+/, "")
+      .replace(/\s+/g, " ").trim();
+    if (!clean) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(clean);
+    u.lang = "es-ES";
+    u.rate = 1.06;
+    const v = window.speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith("es"));
+    if (v) u.voice = v;
+    window.speechSynthesis.speak(u);
   }
 
   // ---------- Cerebro local (modo sin API) ----------
@@ -444,6 +467,7 @@ function ownAnswer(q) {
       if (!reply) reply = "No tengo señal en este momento. Intenta de nuevo o conéctame una IA (Gemini gratis) en «Configurar».";
       history.push(userMsg, { role: "assistant", content: reply });
       moonSay(reply);
+      if (state.handsFree || state.lastInputWasVoice) speak(reply);
     } catch (e) {
       moonSay("⚠️ Algo falló internamente: " + esc(e.message));
     } finally {
@@ -456,6 +480,7 @@ function ownAnswer(q) {
   async function send() {
     const t = input.value.trim();
     if (!t || state.busy) return;
+    state.lastInputWasVoice = false;
     input.value = "";
     addMsg("user", esc(t));
     await answer(t);
@@ -474,28 +499,134 @@ function ownAnswer(q) {
     window.open("https://www.google.com/search?q=" + encodeURIComponent(q), "_blank");
   });
 
-  // ---------- Voz ----------
+  // ---------- Voz: botón micrófono + MODO MANOS LIBRES (habla o aplaude y respondo hablado) ----------
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let rec = null;
-  if (SR) {
-    rec = new SR();
-    rec.lang = "es-ES";
-    rec.interimResults = false;
-    rec.onresult = (e) => {
-      const txt = e.results[0][0].transcript;
-      addMsg("user", esc(txt) + ' <span class="who">🎤 voz</span>');
-      answer(txt);
-    };
-    rec.onend = () => { $("btnMic").textContent = "🎤"; state.listening = false; };
-    rec.onerror = () => { $("btnMic").textContent = "🎤"; state.listening = false; };
+  let rec = null, handsTranscript = "";
+
+  function mkRec() {
+    const r = new SR();
+    r.lang = "es-ES";
+    r.interimResults = true;
+    r.continuous = true;
+    return r;
   }
+
+  // Detecta y quita la palabra de activación ("MOON LIGHT", "oye moon"...)
+  function wakeStrip(txt) {
+    const t = (" " + txt.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") + " ")
+      .replace(/\s+/g, " ").trim();
+    const m = t.match(/\b(moon\s*light|moonlight|mon\s*lait|moin\s*lai|\boye\s+moon)\b/);
+    if (!m) return { rest: t, hadWake: false };
+    return { rest: t.replace(m[0], "").replace(/^[\s,.;:¿?¡!-]+/, "").replace(/\s+/g, " ").trim(), hadWake: true };
+  }
+
+  function voiceAnswer(txt) {
+    if (!txt.trim() || txt.trim().length < 2) return;
+    if (state.busy) { speak("Dame un segundo, estoy liada con otra cosa."); return; }
+    state.lastInputWasVoice = true;
+    addMsg("user", esc(txt.trim()) + ' <span class="who">🎤 voz</span>');
+    answer(txt.trim());
+  }
+
+  function startRec() {
+    if (!SR || rec) return;
+    try {
+      rec = mkRec();
+      rec.onresult = (e) => {
+        handsTranscript = Array.from(e.results).map((r) => r[0].transcript).join("").trim();
+        $("btnMic").textContent = state.handsFree ? "🎙️" : "⏺";
+      };
+      rec.onend = () => {
+        rec = null;
+        if (handsTranscript) {
+          const { rest, hadWake } = wakeStrip(handsTranscript);
+          if (rest && rest.length > 1) voiceAnswer(rest);
+          else if (hadWake) { setStatus("EN ESCUCHA · HABLA O APLAUDE", true); speak("Te escucho. Dime."); }
+        }
+        handsTranscript = "";
+        $("btnMic").textContent = state.handsFree ? "🎙️" : "🎤";
+        state.listening = false;
+        if (state.handsFree) setTimeout(() => { if (state.handsFree) startRec(); }, 350);
+      };
+      rec.onerror = () => {
+        rec = null;
+        handsTranscript = "";
+        state.listening = false;
+        $("btnMic").textContent = state.handsFree ? "🎙️" : "🎤";
+        if (state.handsFree) setTimeout(() => { if (state.handsFree) startRec(); }, 900);
+      };
+      rec.start();
+    } catch { rec = null; state.listening = false; }
+  }
+  function stopRec() { try { rec?.stop(); } catch {} rec = null; handsTranscript = ""; }
+
   $("btnMic").addEventListener("click", () => {
-    if (!rec) { alert("Este navegador no soporta reconocimiento de voz. Prueba con Chrome."); return; }
-    if (state.listening) { rec.stop(); return; }
+    if (!SR) { alert("Este navegador no soporta reconocimiento de voz. Prueba con Chrome."); return; }
+    if (state.handsFree) { setHandsFree(false); return; }
+    if (state.listening || rec) { stopRec(); state.listening = false; $("btnMic").textContent = "🎤"; return; }
     state.listening = true;
     $("btnMic").textContent = "⏺";
-    try { rec.start(); } catch {}
+    startRec();
   });
+
+  // --- Activación por APLAUSOS (dos palmadas seguidas = me despierto) ---
+  let clapGen = 0;
+  function stopClaps() { clapGen++; }
+  async function startClaps() {
+    const gen = ++clapGen;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (gen !== clapGen) { stream.getTracks().forEach((t) => t.stop()); return; }
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      const ctx = new Ctx();
+      const src = ctx.createMediaStreamSource(stream);
+      const node = ctx.createAnalyser();
+      node.fftSize = 512;
+      src.connect(node);
+      const buf = new Uint8Array(node.frequencyBinCount);
+      let lastPeak = 0, burst = [], lastClapAt = 0;
+      (function loop() {
+        if (gen !== clapGen) { stream.getTracks().forEach((t) => t.stop()); try { ctx.close(); } catch {} return; }
+        node.getByteTimeDomainData(buf);
+        let max = 0;
+        for (let i = 0; i < buf.length; i++) { const v = Math.abs(buf[i] - 128) / 128; if (v > max) max = v; }
+        const now = Date.now();
+        if (max > 0.55 && now - lastPeak > 110) {
+          burst = burst.filter((t) => now - t < 1100);
+          burst.push(now);
+          lastPeak = now;
+          if (burst.length >= 2) {
+            burst = [];
+            if (now - lastClapAt > 4000) {
+              lastClapAt = now;
+              setStatus("🫡 TE ESCUCHO (aplauso)", true);
+              speak("Te escucho. Dime.");
+            }
+          }
+        }
+        setTimeout(loop, 110);
+      })();
+    } catch {}
+  }
+
+  // --- Modo manos libres ---
+  function setHandsFree(on) {
+    state.handsFree = on;
+    const b = $("btnHandsFree");
+    if (b) { b.classList.toggle("primary", on); b.textContent = on ? "🎙️ MANOS LIBRES: ON" : "🤫 MANOS LIBRES"; }
+    if (on) {
+      setStatus("EN ESCUCHA · HABLA O APLAUDE", true);
+      startRec();
+      startClaps();
+    } else {
+      setStatus("EN LÍNEA");
+      stopClaps();
+      stopRec();
+      state.listening = false;
+      $("btnMic").textContent = "🎤";
+    }
+  }
+  $("btnHandsFree").addEventListener("click", () => setHandsFree(!state.handsFree));
 
   // ---------- Cámara (detecta Y interactúa con tu movimiento) ----------
   let camStream = null, motionAllowed = true, lastFrame = null, firstLook = true;
