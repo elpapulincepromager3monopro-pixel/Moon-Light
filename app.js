@@ -300,7 +300,7 @@ function ownAnswer(q) {
   // ---------- Motor de IA (tu API opcional → IA en tu navegador sin clave → nube gratuita → cerebro local) ----------
   const PROVIDERS = {
     gemini:    { name: "Google Gemini",   type: "openai",    base: "https://generativelanguage.googleapis.com/v1beta/openai/", model: "gemini-2.0-flash",   models: ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash", "gemini-2.5-flash"], info: "Clave GRATIS: entra a aistudio.google.com/apikey → Create API key, copia y pégala abajo. Modelo: gemini-2.0-flash." },
-    nvidia:    { name: "NVIDIA NIM (Nemotron 3 Ultra)", type: "openai",    base: "https://integrate.api.nvidia.com/v1", model: "nvidia/nemotron-3-ultra-550b-a55b", models: ["nvidia/nemotron-3-ultra-550b-a55b", "nvidia/nemotron-4-340b-instruct", "meta/llama-3.1-70b-instruct"], info: "Clave GRATIS (sin tarjeta): entra a build.nvidia.com → botón «Get API Key» (arriba a la derecha, entra o crea cuenta NVIDIA) → copia la clave «nvapi-…» y pégala abajo. Modelo estrella: Nemotron 3 Ultra 550B (gratis en la prueba). Si sale 401, entra en build.nvidia.com con esa cuenta y activa «API endpoints» de tu organización." },
+    nvidia:    { name: "NVIDIA NIM (Nemotron 3 Ultra)", type: "openai",    base: "https://integrate.api.nvidia.com/v1", model: "nvidia/nemotron-3-ultra-550b-a55b", models: ["nvidia/nemotron-3-ultra-550b-a55b", "nvidia/nemotron-4-340b-instruct", "meta/llama-3.1-70b-instruct"], info: "Clave GRATIS (sin tarjeta): build.nvidia.com → «Get API Key» (arriba a la derecha) → copia la clave «nvapi-…» y pégala abajo. ⚠️ NVIDIA bloquea las llamadas desde el navegador: solo responde cuando MOON LIGHT corre en tu PC (localhost:3000) con el servidor local abierto. En la web pública, puede darte «Failed to fetch»: es normal, usa otro cerebro." },
     openrouter: { name: "OpenRouter",      type: "openai",    base: "https://openrouter.ai/api/v1", model: "openrouter/auto", models: ["openrouter/auto", "deepseek/deepseek-chat", "meta-llama/llama-3.3-70b-instruct", "anthropic/claude-3.5-sonnet", "openai/gpt-4o-mini"], info: "Clave GRATIS: entra a openrouter.ai → Create account → Keys → Create Key. Da acceso a OpenAI, Claude y todos, incluso modelos gratis." },
     groq:      { name: "Groq",             type: "openai",    base: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile", models: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"], info: "Clave GRATIS: entra a console.groq.com/keys → Create API Key. Muy rápida." },
     cerebras:  { name: "Cerebras",         type: "openai",    base: "https://api.cerebras.ai/v1", model: "llama-3.3-70b", models: ["llama-3.3-70b", "llama-3.3-8b"], info: "Clave GRATIS: entra a cloud.cerebras.ai → API Keys → Create. La más veloz del mundo." },
@@ -356,6 +356,20 @@ function ownAnswer(q) {
     return runCfg(cfg, history);
   }
   async function runCfg(cfg, history) {
+    // NVIDIA bloquea llamadas desde el navegador: va por el servidor local cuando esté corriendo
+    if (cfg.provider === "nvidia" && cfg.key) {
+      try {
+        const pr = await fetchWithTimeout("api/proxy/nvidia", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: cfg.key, model: cfg.model, messages: history })
+        }, 60000);
+        if (pr.ok) {
+          const pj = await pr.json();
+          if (pj && pj.content) return pj.content;
+        }
+      } catch { /* si no hay servidor local, cae al intento directo */ }
+    }
     const body = { model: cfg.model, messages: history, temperature: 0.6, max_tokens: 2048 };
     const res = await fetchWithTimeout(effBase(cfg) + "/chat/completions", {
       method: "POST",
@@ -1043,19 +1057,17 @@ function ownAnswer(q) {
     if (!p || !cfg.model || !cfg.key) { alert("Completa motor, modelo y clave."); return; }
     $("btnTestApi").textContent = "Probando…";
     try {
+      let out;
       if (PROVIDERS[p]?.type === "anthropic") {
-        await callClaude(cfg, [{ role: "user", content: "Responde solo: OK" }]);
+        out = await callClaude(cfg, [{ role: "user", content: "Responde solo: OK" }]);
       } else {
-        const r = await fetch(effBase(cfg) + "/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.key}` },
-          body: JSON.stringify({ model: cfg.model, messages: [{ role: "user", content: "Responde solo OK" }], max_tokens: 5 })
-        });
-        if (!r.ok) throw new Error("HTTP " + r.status + " " + (await r.text()).slice(0, 120));
+        out = await runCfg(cfg, [{ role: "user", content: "Responde solo: OK" }]);
       }
-      alert("✔ Conexión exitosa. MOON LIGHT está en línea.");
+      if (!out) throw new Error("Respuesta vacía");
+      alert("✔ Conexión exitosa. " + (p === "nvidia" ? "Nemotron respondió a través de tu servidor local." : "MOON LIGHT está en línea."));
     } catch (e) {
-      alert("✘ Fallo: " + e.message);
+      const msg = String(e.message || e);
+      alert("✘ Fallo: " + msg + (msg.includes("Failed to fetch") ? "\n\nEl navegador bloquea esta API (CORS). De las gratuitas de web, usa Gemini, Groq u OpenRouter. Nemotron solo funciona desde tu PC con el servidor local abierto." : ""));
     } finally { $("btnTestApi").textContent = "Probar conexión"; }
   });
   $("btnClearApi").addEventListener("click", () => {

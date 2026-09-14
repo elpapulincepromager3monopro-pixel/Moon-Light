@@ -66,6 +66,42 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Puente para NVIDIA (Nemotron): el navegador la bloquea, tu servidor local no
+  if (urlPath === "/api/proxy/nvidia") {
+    if (req.method === "OPTIONS") {
+      res.writeHead(204, {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type"
+      });
+      res.end();
+      return;
+    }
+    if (req.method !== "POST") { res.writeHead(405).end(); return; }
+    let body = "";
+    req.on("data", (c) => { body += c; if (body.length > 500000) req.destroy(); });
+    req.on("end", async () => {
+      try {
+        const { key, model, messages } = JSON.parse(body);
+        if (!key || !model) throw new Error("Faltan key/model");
+        const r = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+          body: JSON.stringify({ model, messages, temperature: 0.6, max_tokens: 2048 })
+        }, { signal: AbortSignal.timeout(60000) });
+        const j = await r.json();
+        if (!r.ok) throw new Error("NVIDIA HTTP " + r.status + ": " + JSON.stringify(j).slice(0, 200));
+        const txt = j.choices?.[0]?.message?.content || "";
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*" });
+        res.end(JSON.stringify({ content: txt }));
+      } catch (e) {
+        res.writeHead(502, { "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*" });
+        res.end(JSON.stringify({ error: String(e.message || e) }));
+      }
+    });
+    return;
+  }
+
   const safePath = path.normalize(path.join(ROOT, urlPath));
   if (!safePath.startsWith(ROOT)) {
     res.writeHead(403).end("Acceso denegado");
