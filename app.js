@@ -1014,6 +1014,21 @@ function ownAnswer(q) {
     }
   }
   $("btnLocalBrain").addEventListener("click", () => loadBrowserBrain(false));
+  let installPrompt = null;
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    installPrompt = e;
+  });
+  $("btnInstall").addEventListener("click", async () => {
+    if (installPrompt) {
+      installPrompt.prompt();
+      await installPrompt.userChoice.catch(() => {});
+      installPrompt = null;
+    } else {
+      alert("En Chrome/Edge, usa el icono «Instalar» (monitor con flecha ⤓) que aparece en la barra de direcciones de esta página. O usa la app del escritorio: la carpeta «MOON LIGHT App».");
+    }
+  });
+
   $("btnPuter").addEventListener("click", async () => {
     const btn = $("btnPuter");
     btn.disabled = true;
