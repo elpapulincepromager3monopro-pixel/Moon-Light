@@ -105,7 +105,7 @@
     .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
     .replace(/\s+/g, " ").trim();
   async function wikiSummary(query) {
-    const clean = query.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/^(hazme un informe (de|del|sobre)|hazme un resumen (de|del|sobre)|dame un informe (de|del|sobre)|dame un resumen (de|del|sobre)|dame (informacion|info) (de|sobre|del)|informe (de|del|sobre)|resumen (de|del|sobre)|hablame (de|sobre|del)|cuentame (de|sobre|del|que es|que es un|que es una)?|puedes (contarme|decirme|darme)? ?(sobre|de)? ?(que es|que es un|que es una)?|podrias (contarme|decirme) (sobre|de)?|que es|que significa|que quiere decir|explicame|explica|dime|resume|como es|busca|buscar|palabra|definicion de|que son|cual es|cuales son|por que|quien fue|que fue|cuantos|cuales|dime las caracteristicas|oye|mira|bueno|sabes (algo de|que es)?|aver|a ver|sobre)\s+/i, "").replace(/^(aver|a ver|oye|mira|bueno|pues|sabes)\s+(que es|que son|que es un|que es una|que significa|algo de|sobre)?\s*/i, "");
+    const clean = query.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/^(hazme un informe completo (de|del|sobre)|dame un informe completo (de|del|sobre)|hazme un informe (de|del|sobre)|hazme un resumen (de|del|sobre)|dame un informe (de|del|sobre)|dame un resumen (de|del|sobre)|dame (informacion|info) (de|sobre|del)|informe (de|del|sobre)|resumen (de|del|sobre)|hablame (de|sobre|del)|cuentame (de|sobre|del|que es|que es un|que es una)?|puedes (contarme|decirme|darme)? ?(sobre|de)? ?(que es|que es un|que es una)?|podrias (contarme|decirme) (sobre|de)?|que es|que significa|que quiere decir|explicame|explica|dime|resume|como es|busca|buscar|palabra|definicion de|que son|cual es|cuales son|por que|quien fue|que fue|cuantos|cuales|dime las caracteristicas|oye|mira|bueno|sabes (algo de|que es)?|aver|a ver|sobre)\s+/i, "").replace(/^(aver|a ver|oye|mira|bueno|pues|sabes)\s+(que es|que son|que es un|que es una|que significa|algo de|sobre)?\s*/i, "");
     if (!clean) return null;
     const r = await fetchWithTimeout(`https://es.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(clean)}&format=json&origin=*&utf8=1&srlimit=5`, {}, 9000);
     const j = await r.json();
@@ -150,7 +150,7 @@
   ];
   function factsAnswer(q) {
   const FACTS = [
-    { t: /informe.*cuerpo humano|resumen.*cuerpo humano|dame.*informe/, r: "📋 **INFORME: EL CUERPO HUMANO**\n\n**Estructura:** 206 huesos (unos 300 al nacer, varios se fusionan), ~650 músculos y 32 dientes en el adulto.\n**Órganos vitales:** cerebro (1,3-1,4 kg con ~86.000 millones de neuronas), corazón (~100.000 latidos/día), pulmones (capacidad 5-6 L), hígado y riñones.\n**Composición:** ~60% agua, unos 5 litros de sangre y un intestino delgado de 6-7 metros.\n**Piel:** unos 2 m², con 3 capas (epidermis, dermis e hipodermis); se renueva por completo cada ~27 días.\n**Sentidos:** 5 clásicos (vista, oído, olfato, gusto y tacto), más el equilibrio y la propiocepción.\n**Dato:** cada día pierdes unas 500.000 células y tu cuerpo produce nuevas todo el tiempo. 🌙" },
+    { t: /informe.*cuerpo humano|resumen.*cuerpo humano|cuerpo humano.*(informe|resumen)/, r: "📋 **INFORME: EL CUERPO HUMANO**\n\n**Estructura:** 206 huesos (unos 300 al nacer, varios se fusionan), ~650 músculos y 32 dientes en el adulto.\n**Órganos vitales:** cerebro (1,3-1,4 kg con ~86.000 millones de neuronas), corazón (~100.000 latidos/día), pulmones (capacidad 5-6 L), hígado y riñones.\n**Composición:** ~60% agua, unos 5 litros de sangre y un intestino delgado de 6-7 metros.\n**Piel:** unos 2 m², con 3 capas (epidermis, dermis e hipodermis); se renueva por completo cada ~27 días.\n**Sentidos:** 5 clásicos (vista, oído, olfato, gusto y tacto), más el equilibrio y la propiocepción.\n**Dato:** cada día pierdes unas 500.000 células y tu cuerpo produce nuevas todo el tiempo. 🌙" },
     { t: /huesos/, r: "El cuerpo humano adulto tiene 206 huesos (los bebés nacen con ~300, muchos se fusionan al crecer)." },
     { t: /musculos/, r: "El cuerpo humano tiene unos 650 músculos, y el más fuerte (proporcional) es el masetero de la mandíbula." },
     { t: /dientes/, r: "Un adulto tiene 32 dientes (4 muelas del juicio incluidas); los niños tienen 20 de leche." },
@@ -512,7 +512,12 @@ function ownAnswer(q) {
           brainName = (typeof ai === "object" && ai.brain) ? ai.brain : null;
         }
       } catch { reply = null; } // la nube falló: seguimos con mi cerebro local, sin dramas
-      if (!reply) { reply = await localBrain(text); brainName = brainName || "Cerebro local"; }
+      if (!reply) {
+        reply = await localBrain(text);
+        brainName = brainName || "Cerebro local";
+        if (!ai && teamConfigs().length > 0)
+          reply += "\n\n*(ℹ️ Los cerebros de APEX no respondieron (clave o conexión). Revisa en «Configurar» → «Probar conexión».)*";
+      }
       if (!reply) reply = "No tengo señal en este momento. Intenta de nuevo o conéctame una IA (Gemini gratis) en «Configurar».";
       history.push(userMsg, { role: "assistant", content: reply });
       const div = moonSay(reply);
