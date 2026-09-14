@@ -518,18 +518,19 @@ function ownAnswer(q) {
     setStatus("PENSANDO", true);
     state.busy = true;
     try {
-      let reply, brainName = null;
+      let reply, brainName = null, aiFailed = true;
       try {
         const ai = await callAI([...history, userMsg]);
         if (ai) {
           reply = typeof ai === "string" ? ai : ai.text;
           brainName = (typeof ai === "object" && ai.brain) ? ai.brain : null;
+          aiFailed = false;
         }
       } catch { reply = null; } // la nube falló: seguimos con mi cerebro local, sin dramas
       if (!reply) {
         reply = await localBrain(text);
         brainName = brainName || "Cerebro local";
-        if (!ai && teamConfigs().length > 0)
+        if (aiFailed && teamConfigs().length > 0)
           reply += "\n\n*(ℹ️ Los cerebros de APEX no respondieron (clave o conexión). Revisa en «Configurar» → «Probar conexión».)*";
       }
       if (!reply) reply = "No tengo señal en este momento. Intenta de nuevo o conéctame una IA (Gemini gratis) en «Configurar».";
