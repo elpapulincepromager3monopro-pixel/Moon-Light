@@ -353,6 +353,9 @@ function ownAnswer(q) {
   async function callConfigured(history) {
     const cfg = getConfig();
     if (PROVIDERS[cfg.provider]?.type === "anthropic") return callClaude(cfg, history);
+    return runCfg(cfg, history);
+  }
+  async function runCfg(cfg, history) {
     const body = { model: cfg.model, messages: history, temperature: 0.6, max_tokens: 2048 };
     const res = await fetchWithTimeout(effBase(cfg) + "/chat/completions", {
       method: "POST",
@@ -362,6 +365,51 @@ function ownAnswer(q) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const j = await res.json();
     return j.choices?.[0]?.message?.content || null;
+  }
+
+  // ---------- CEREBRO EN EQUIPO: varias IAs conectadas repartiendo preguntas ----------
+  const BRAIN_LANES = ["nvidia", "groq", "cerebras", "gemini", "openrouter", "deepseek", "openai", "claude"];
+  function teamConfigs() {
+    const list = [];
+    try {
+      for (const k of Object.keys(localStorage)) {
+        if (k.indexOf("jarvis.api.") === 0) {
+          const c = JSON.parse(localStorage.getItem(k) || "null");
+          if (c && c.key && c.model) list.push(c);
+        }
+      }
+    } catch {}
+    const main = getConfig();
+    if (main && main.key && !list.some((c) => c.provider === main.provider)) list.unshift(main);
+    return list;
+  }
+  function brainOrder(q) {
+    const team = teamConfigs();
+    const code = /(codigo|program|script|funcion|matriz|debugar|debug|error de|correg|escribeme un|hazme un|python|javascript|html|css)/.test(q);
+    const fast = /(rapido|rapida|veloz|que hora|cuanto es|\d+\s*[-+*/])/.test(q);
+    const wanted = code ? BRAIN_LANES : fast ? ["groq", "cerebras", "gemini", "nvidia", "openrouter", "deepseek", "openai", "claude"] : ["gemini", "nvidia", "openrouter", "groq", "cerebras", "deepseek", "openai", "claude"];
+    const order = [];
+    for (const p of wanted) { const c = team.find((x) => x.provider === p); if (c && !order.includes(c)) order.push(c); }
+    for (const c of team) if (!order.includes(c)) order.push(c);
+    return order;
+  }
+  function brainLaneName(cfg) {
+    return PROVIDERS[cfg.provider] ? PROVIDERS[cfg.provider].name : (cfg.model || "IA");
+  }
+  async function callBroker(history) {
+    const team = teamConfigs();
+    if (!team.length) return null;
+    const last = [...history].reverse().find((m) => m.role === "user");
+    const q = (last?.content || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    for (const cfg of brainOrder(q)) {
+      try {
+        let txt;
+        if (PROVIDERS[cfg.provider]?.type === "anthropic") txt = await callClaude(cfg, history);
+        else txt = await runCfg(cfg, history);
+        if (txt && txt.trim()) return { text: txt.trim(), brain: brainLaneName(cfg) };
+      } catch { continue; }
+    }
+    return null;
   }
 
   // ---- IA en el navegador (WebLLM): potente y SIN clave, 100% privada ----
@@ -436,17 +484,13 @@ function ownAnswer(q) {
   }
 
   async function callAI(history) {
-    if (brainMode() === "api") {
-      try { return await callConfigured(history); }
-      catch (e) {
-        moonSay("⚠️ Tu API no respondió (" + esc(e.message) + "). Pruebo con la IA local o el buscador.");
-        const ok = await loadBrowserBrain(true);
-        if (ok) { try { return await webllmChat(history); } catch {} }
-        return null;
-      }
+    const team = teamConfigs();
+    if (team.length) {
+      const r = await callBroker(history);
+      if (r) return r;
     }
     if (engineState.ready) {
-      try { const r = await webllmChat(history); if (r) return r; } catch {}
+      try { const r = await webllmChat(history); if (r) return { text: r, brain: "IA local (sin clave)" }; } catch {}
     }
     return null; // cerebro local (buscador + matemáticas) — sin ventanas emergentes
   }
@@ -460,13 +504,24 @@ function ownAnswer(q) {
     setStatus("PENSANDO", true);
     state.busy = true;
     try {
-      let reply;
-      try { reply = await callAI([...history, userMsg]); }
-      catch { reply = null; } // la nube falló: seguimos con mi cerebro local, sin dramas
-      if (!reply) reply = await localBrain(text);
+      let reply, brainName = null;
+      try {
+        const ai = await callAI([...history, userMsg]);
+        if (ai) {
+          reply = typeof ai === "string" ? ai : ai.text;
+          brainName = (typeof ai === "object" && ai.brain) ? ai.brain : null;
+        }
+      } catch { reply = null; } // la nube falló: seguimos con mi cerebro local, sin dramas
+      if (!reply) { reply = await localBrain(text); brainName = brainName || "Cerebro local"; }
       if (!reply) reply = "No tengo señal en este momento. Intenta de nuevo o conéctame una IA (Gemini gratis) en «Configurar».";
       history.push(userMsg, { role: "assistant", content: reply });
-      moonSay(reply);
+      const div = moonSay(reply);
+      if (brainName) {
+        const tag = document.createElement("span");
+        tag.className = "who";
+        tag.textContent = " 🧠 " + brainName;
+        div.appendChild(tag);
+      }
       if (state.handsFree || state.lastInputWasVoice) speak(reply);
     } catch (e) {
       moonSay("⚠️ Algo falló internamente: " + esc(e.message));
@@ -918,17 +973,24 @@ function ownAnswer(q) {
   $("btnCloseApi").addEventListener("click", () => $("apiModal").classList.add("hidden"));
 
   function updateApiState() {
-    const cfg = getConfig();
-    if (cfg && cfg.key && cfg.model) {
-      const nm = PROVIDERS[cfg.provider] ? PROVIDERS[cfg.provider].name : "Personalizado";
-      apiState.innerHTML = `🌐 Motor: <b>${esc(cfg.model)}</b> (${esc(nm)})<br/>Con tu clave personal.`;
-      $("statMode").textContent = "API";
-    } else if (engineState.ready) {
-      apiState.innerHTML = "🧠 IA local lista: sin clave, privada y sin internet.";
-      $("statMode").textContent = "LOCAL IA";
+    const team = teamConfigs();
+    if (team.length > 1) {
+      const names = team.map((c) => esc(PROVIDERS[c.provider]?.name || c.model)).slice(0, 3).join(", ");
+      apiState.innerHTML = `🧬 Cerebro en equipo: <b>${team.length} IAs</b> conectadas (${names}…). Reparto cada pregunta a la mejor.`;
+      $("statMode").textContent = "EQUIPO " + team.length;
     } else {
-      apiState.innerHTML = "🧠 Sin clave: respondo con mi cerebro (matemáticas, personalidad y buscador web con enlaces). ¿IA real? Conecta Gemini gratis en «Configurar» o usa el botón «Conectar nube IA gratis».";
-      $("statMode").textContent = "LOCAL";
+      const cfg = getConfig();
+      if (cfg && cfg.key && cfg.model) {
+        const nm = PROVIDERS[cfg.provider] ? PROVIDERS[cfg.provider].name : "Personalizado";
+        apiState.innerHTML = `🌐 Motor: <b>${esc(cfg.model)}</b> (${esc(nm)})<br/>Con tu clave personal.`;
+        $("statMode").textContent = "API";
+      } else if (engineState.ready) {
+        apiState.innerHTML = "🧠 IA local lista: sin clave, privada y sin internet.";
+        $("statMode").textContent = "LOCAL IA";
+      } else {
+        apiState.innerHTML = "🧠 Sin clave: respondo con mi cerebro (matemáticas, personalidad y buscador web con enlaces). ¿IA real? Conecta Gemini gratis en «Configurar» o usa el botón «Conectar nube IA gratis».";
+        $("statMode").textContent = "LOCAL";
+      }
     }
   }
   $("btnLocalBrain").addEventListener("click", () => loadBrowserBrain(false));
@@ -962,10 +1024,13 @@ function ownAnswer(q) {
     if (!modelI.value.trim()) { alert("Completa el modelo."); return; }
     const base = p === "custom" ? baseI.value.trim() : PROVIDERS[p].base;
     if (!base) { alert("Completa la URL base."); return; }
-    localStorage.setItem("jarvis.api", JSON.stringify({ provider: p, base, model: modelI.value.trim(), key: keyI.value.trim() }));
+    const payload = JSON.stringify({ provider: p, base, model: modelI.value.trim(), key: keyI.value.trim() });
+    localStorage.setItem("jarvis.api", payload);
+    localStorage.setItem("jarvis.api." + p, payload);
+    const n = teamConfigs().length;
     updateApiState();
     $("apiModal").classList.add("hidden");
-    moonSay("✅ Motor configurado: **" + esc(modelI.value.trim()) + "**. Ya respondo con él.");
+    moonSay("✅ Motor configurado: **" + esc(modelI.value.trim()) + "**." + (n > 1 ? ` El equipo tiene **${n} IAs** y reparto cada pregunta a la mejor.` : " Ya respondo con él. Guarda más motores en «Configurar» y formamos el equipo."));
   });
   $("btnTestApi").addEventListener("click", async () => {
     const p = provider.value;
@@ -989,7 +1054,7 @@ function ownAnswer(q) {
     } finally { $("btnTestApi").textContent = "Probar conexión"; }
   });
   $("btnClearApi").addEventListener("click", () => {
-    localStorage.removeItem("jarvis.api");
+    for (const k of Object.keys(localStorage)) if (k === "jarvis.api" || k.indexOf("jarvis.api.") === 0) localStorage.removeItem(k);
     updateApiState();
     $("apiModal").classList.add("hidden");
   });
