@@ -519,7 +519,7 @@ function ownAnswer(q) {
       if (brainName) {
         const tag = document.createElement("span");
         tag.className = "who";
-        tag.textContent = " 🧠 " + brainName;
+        tag.textContent = teamConfigs().length > 1 ? " 💎 APEX · " + brainName : " 🧠 " + brainName;
         div.appendChild(tag);
       }
       if (state.handsFree || state.lastInputWasVoice) speak(reply);
@@ -976,8 +976,8 @@ function ownAnswer(q) {
     const team = teamConfigs();
     if (team.length > 1) {
       const names = team.map((c) => esc(PROVIDERS[c.provider]?.name || c.model)).slice(0, 3).join(", ");
-      apiState.innerHTML = `🧬 Cerebro en equipo: <b>${team.length} IAs</b> conectadas (${names}…). Reparto cada pregunta a la mejor.`;
-      $("statMode").textContent = "EQUIPO " + team.length;
+      apiState.innerHTML = `💎 <b>APEX</b> activo: <b>${team.length} cerebros</b> conectados (${names}…). Reparto cada pregunta al mejor.`;
+      $("statMode").textContent = "APEX " + team.length;
     } else {
       const cfg = getConfig();
       if (cfg && cfg.key && cfg.model) {
@@ -1030,7 +1030,7 @@ function ownAnswer(q) {
     const n = teamConfigs().length;
     updateApiState();
     $("apiModal").classList.add("hidden");
-    moonSay("✅ Motor configurado: **" + esc(modelI.value.trim()) + "**." + (n > 1 ? ` El equipo tiene **${n} IAs** y reparto cada pregunta a la mejor.` : " Ya respondo con él. Guarda más motores en «Configurar» y formamos el equipo."));
+    moonSay("✅ Motor configurado: **" + esc(modelI.value.trim()) + "**." + (n > 1 ? ` **APEX** ya tiene **${n} cerebros** y reparto cada pregunta al mejor.` : " Únete al equipo: guarda más motores en «Configurar» y nace **APEX**."));
   });
   $("btnTestApi").addEventListener("click", async () => {
     const p = provider.value;
