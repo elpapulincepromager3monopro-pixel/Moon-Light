@@ -1247,11 +1247,12 @@ function ownAnswer(q) {
       alert("✘ Fallo: " + msg + (msg.includes("Failed to fetch") ? "\n\nEl navegador bloquea esta API (CORS). De las gratuitas de web, usa Gemini, Groq u OpenRouter. Nemotron solo funciona desde tu PC con el servidor local abierto." : ""));
     } finally { $("btnTestApi").textContent = "Probar conexión"; }
   });
-$("btnSweep").addEventListener("click", async () => {
-    const team = teamConfigs();
-    if (!team.length) { alert("No hay cerebros guardados. Guarda claves en «Configurar» primero."); return; }
-    moonSay("🩺 Probando los " + team.length + " cerebros del APEX uno por uno…");
-    const lines = ["**Resultado de cada cerebro:**"];
+  $("btnSweep").addEventListener("click", async () => {
+    try {
+      const team = teamConfigs();
+      if (!team.length) { alert("No hay cerebros guardados. Guarda claves en «Configurar» primero."); return; }
+      moonSay("🩺 Probando los " + team.length + " cerebros del APEX uno por uno…");
+      const lines = ["**Resultado de cada cerebro:**"];
     const laneTest = async (cfg) => {
       const name = brainLaneName(cfg);
       const started = Date.now();
