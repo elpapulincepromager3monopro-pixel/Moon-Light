@@ -1248,11 +1248,11 @@ function ownAnswer(q) {
     } finally { $("btnTestApi").textContent = "Probar conexión"; }
   });
   $("btnSweep").addEventListener("click", async () => {
-    try {
-      const team = teamConfigs();
-      if (!team.length) { alert("No hay cerebros guardados. Guarda claves en «Configurar» primero."); return; }
-      moonSay("🩺 Probando los " + team.length + " cerebros del APEX uno por uno…");
-      const lines = ["**Resultado de cada cerebro:**"];
+    const team = teamConfigs();
+    if (!team.length) { alert("No hay cerebros guardados. Guarda claves en «Configurar» primero."); return; }
+    moonSay("🩺 Probando los " + team.length + " cerebros del APEX uno por uno…");
+    const lines = ["**Resultado de cada cerebro:**"];
+
     const laneTest = async (cfg) => {
       const name = brainLaneName(cfg);
       const started = Date.now();
