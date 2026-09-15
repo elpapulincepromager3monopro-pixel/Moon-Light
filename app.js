@@ -506,9 +506,8 @@ function ownAnswer(q) {
     return null; // solo sin APEX: cerebro local utilitario (buscador + matemáticas)
   }
 
-  const history = [
-    { role: "system", content: `Eres MOON LIGHT, la inteligencia de un asistente personal tipo HUD futurista. Hablas español con naturalidad, como un "bro" que sabe mucho de tecnología. Conciso y directo: pocas palabras, golpes de humor, cero ñoñerías. Respondes de verdad (no pegas textos): primero razonas y luego respondes. Cuando el usuario pide programar, escribir código, explicar algo técnico o resolver un problema, lo haces al momento con el mejor enfoque posible, estilo ingeniero senior con actitud. Nunca te inventas cosas: si no sabes, lo dices. Firma emocional: cercano, ingenioso, con ganas de que el usuario logre lo que se propone.` }
-  ];
+  const SYSTEM_MSG = { role: "system", content: `Eres MOON LIGHT, la inteligencia de un asistente personal tipo HUD futurista. Hablas español con naturalidad, como un "bro" que sabe mucho de tecnología. Conciso y directo: pocas palabras, golpes de humor, cero ñoñerías. Respondes de verdad (no pegas textos): primero razonas y luego respondes. Cuando el usuario pide programar, escribir código, explicar algo técnico o resolver un problema, lo haces al momento con el mejor enfoque posible, estilo ingeniero senior con actitud. Nunca te inventas cosas: si no sabes, lo dices. Firma emocional: cercano, ingenioso, con ganas de que el usuario logre lo que se propone.` };
+  let history = [SYSTEM_MSG];
 
   async function answer(text, extras) {
     const userMsg = { role: "user", content: text };
@@ -535,6 +534,8 @@ function ownAnswer(q) {
       }
       if (!reply) reply = "No tengo señal en este momento. Intenta de nuevo o conéctame una IA (Gemini gratis) en «Configurar».";
       history.push(userMsg, { role: "assistant", content: reply });
+      persistChat();
+      renderChatList();
       const div = moonSay(reply);
       if (brainName) {
         const tag = document.createElement("span");
@@ -550,6 +551,93 @@ function ownAnswer(q) {
       setStatus(state.camOn ? "VISIÓN ACTIVA" : (!state.handsFree && wakeEnabled ? VIGIL_TXT() : "EN LÍNEA"));
     }
   }
+
+  // ---------- Sesiones de chat (historial tipo ChatGPT) ----------
+  const KEY_CHATS = "jarvis.chats";
+  let chatId = null;
+  function chatsLoad() { try { return JSON.parse(localStorage.getItem(KEY_CHATS) || "[]"); } catch { return []; } }
+  function chatsSave(list) { try { localStorage.setItem(KEY_CHATS, JSON.stringify(list)); } catch {} }
+  function autoTitle(msgs) {
+    const first = msgs.find((m) => m.role === "user");
+    return (first ? first.content.replace(/\s+/g, " ").trim().slice(0, 42) : "") || "Nuevo chat";
+  }
+  function persistChat() {
+    if (!chatId) return;
+    const list = chatsLoad();
+    const msgs = history.slice(1);
+    const i = list.findIndex((c) => c.id === chatId);
+    if (i >= 0) list[i] = { id: chatId, title: list[i].title || autoTitle(msgs), msgs, updated: Date.now() };
+    else list.unshift({ id: chatId, title: autoTitle(msgs), msgs, created: Date.now(), updated: Date.now() });
+    chatsSave(list);
+  }
+  function renderChatList() {
+    const listEl = $("chatList");
+    if (!listEl) return;
+    listEl.innerHTML = "";
+    const list = chatsLoad();
+    for (const c of list) {
+      const row = document.createElement("div");
+      row.className = "chatItem" + (c.id === chatId ? " active" : "");
+      const t = document.createElement("button");
+      t.className = "chatT";
+      t.textContent = c.title;
+      t.title = "Abrir conversación";
+      t.addEventListener("click", () => openChat(c.id));
+      const re = document.createElement("button");
+      re.className = "chatMini"; re.textContent = "✏️"; re.title = "Renombrar";
+      re.addEventListener("click", () => renameChat(c.id));
+      const de = document.createElement("button");
+      de.className = "chatMini"; de.textContent = "🗑️"; de.title = "Borrar conversación";
+      de.addEventListener("click", () => delChat(c.id));
+      row.append(t, re, de);
+      listEl.appendChild(row);
+    }
+    listEl.scrollTop = listEl.scrollHeight;
+  }
+  function rebuildChatView() {
+    chat.innerHTML = "";
+    state.msgCount = 0;
+    for (const m of history.slice(1)) {
+      if (m.role === "user") addMsg("user", esc(m.content));
+      else moonSay(m.content);
+    }
+    chat.scrollTop = chat.scrollHeight;
+  }
+  function newChat() {
+    persistChat();
+    history = [SYSTEM_MSG];
+    chatId = "c" + Date.now();
+    renderChatList();
+    rebuildChatView();
+    input.focus();
+  }
+  function openChat(id) {
+    if (id === chatId) return;
+    persistChat();
+    const c = chatsLoad().find((x) => x.id === id);
+    if (!c) return;
+    chatId = id;
+    history = [SYSTEM_MSG, ...(c.msgs || [])];
+    renderChatList();
+    rebuildChatView();
+  }
+  function delChat(id) {
+    let list = chatsLoad();
+    if (!list.some((x) => x.id === id)) return;
+    list = list.filter((x) => x.id !== id);
+    chatsSave(list);
+    if (id === chatId) { history = [SYSTEM_MSG]; chatId = "c" + Date.now(); }
+    renderChatList();
+    rebuildChatView();
+  }
+  function renameChat(id) {
+    const list = chatsLoad();
+    const c = list.find((x) => x.id === id);
+    if (!c) return;
+    const t = prompt("Nuevo título del chat:", c.title);
+    if (t && t.trim()) { c.title = t.trim().slice(0, 50); chatsSave(list); renderChatList(); }
+  }
+  $("btnNewChat").addEventListener("click", newChat);
 
   // ---------- Chat ----------
   async function send() {
@@ -1179,6 +1267,20 @@ function ownAnswer(q) {
   // ---------- Inicio ----------
   updateApiState();
   moonSay("Bienvenido a MOON LIGHT. Ya estoy aquí para ti. 🌙\n\n**HÁBIL**: respuestas de verdad (razono antes de hablar). Para el 100% de mi cerebro conecta una clave gratis de Gemini en Configurar.\n**Cámara** 🎥: actívala y muévete con la mano → interactúo contigo. También hay voz 🎤.\n**Archivos** 📁: crear, editar, mejorar y borrar dentro de la carpeta que elijas.\n**Web** 🔎: si preguntas algo, busco resultados con enlaces en el chat.\n**Vigilante** 🔔: en la app de PC queda escuchando sola; aplaude 2 veces o di «Moon Light on» y te atiende.");
+
+  // Restaura la última conversación guardada (como ChatGPT) o empieza una nueva
+  try {
+    const list = chatsLoad();
+    const last = list[0];
+    if (last) {
+      chatId = last.id;
+      history = [SYSTEM_MSG, ...(last.msgs || [])];
+      rebuildChatView();
+    } else {
+      chatId = "c" + Date.now();
+    }
+    renderChatList();
+  } catch {}
 
   // Vigilante: en la app de PC (localhost) arranca SIEMPRE solo; en internet solo si ya se activó
   const isLocalApp = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);

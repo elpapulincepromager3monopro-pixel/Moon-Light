@@ -92,7 +92,7 @@ body::after {
   gap: 14px; padding: 14px;
   height: calc(100vh - 70px);
 }
-.sideCol { display: grid; grid-template-rows: 1fr 1fr 1fr; gap: 14px; min-height: 0; }
+.sideCol { display: grid; grid-template-rows: 1fr 1fr 1fr 1fr; gap: 14px; min-height: 0; }
 
 .panel {
   position: relative;
@@ -233,6 +233,27 @@ a.gBtn:hover { background: rgba(255,215,0,0.18); box-shadow: 0 0 12px rgba(255,2
   animation: spinFlat 6s linear infinite;
 }
 .camHud span { font-size: 11px; letter-spacing: 2px; color: var(--gold-soft); text-shadow: 0 0 6px #000; margin-top: 170px; }
+
+.chatList {
+  position: relative; z-index: 1;
+  flex: 1; overflow-y: auto; border: 1px solid var(--line); border-radius: 9px; padding: 6px; min-height: 0;
+  background: rgba(2,6,14,0.6);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.chatItem {
+  display: flex; align-items: center; gap: 2px;
+  background: rgba(140,190,255,0.05); border: 1px solid rgba(120,160,220,0.18);
+  border-radius: 6px; padding: 2px 4px;
+}
+.chatItem.active { background: rgba(255,215,0,0.12); border-color: rgba(255,215,0,0.45); }
+.chatItem .chatT {
+  flex: 1; min-width: 0; background: none; border: none; color: var(--text);
+  font-family: inherit; font-size: 12px; text-align: left; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 4px 2px;
+}
+.chatItem .chatT:hover { color: var(--gold); }
+.chatItem .chatMini { background: none; border: none; color: var(--dim); font-size: 11px; cursor: pointer; padding: 2px 3px; }
+.chatItem .chatMini:hover { color: var(--gold); }
 
 .fileList {
   position: relative; z-index: 1;
