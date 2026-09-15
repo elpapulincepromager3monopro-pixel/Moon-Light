@@ -736,9 +736,9 @@ function ownAnswer(q) {
     if (state.handsFree) return;
     try { window.focus(); } catch {} // trae la ventana al frente aunque esté minimizada
     setHandsFree(true); // enciende micrófono + manos libres (escucha continua + aplausos)
-    addMsg("moon", '<span class="who">🔔 Vigilante</span> me activaste con ' + (reason === "aplausos" ? "2 aplausos 👏" : "«Moon Light on» 🎙️") + ". Aquí estoy.");
-    if (reason === "aplausos") { setStatus("🫡 TE ESCUCHO (aplauso)", true); speak("¿Sí? Aquí estoy. Dime."); }
-    else { setStatus("EN ESCUCHA · HABLA", true); speak("¡Moon Light, aquí estoy! Dime."); }
+    addMsg("moon", '<span class="who">🔔 Vigilante</span> me activaste con ' + (reason === "aplausos" ? "2 aplausos 👏" : "«Moon Light on» 🎙️") + ". A su servicio, señor.");
+    setStatus(reason === "aplausos" ? "🫡 TE ESCUCHO (aplauso)" : "EN ESCUCHA · HABLA", true);
+    speak("Moon Light, a su servicio, señor. ¿Qué necesita?");
   }
 
   function doSleep() {
