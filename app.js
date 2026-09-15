@@ -499,14 +499,11 @@ function ownAnswer(q) {
 
   async function callAI(history) {
     const team = teamConfigs();
-    if (team.length) {
-      const r = await callBroker(history);
-      if (r) return r;
-    }
+    if (team.length) return callBroker(history); // APEX: solo cerebros con API (prohibido degradar sin clave)
     if (engineState.ready) {
       try { const r = await webllmChat(history); if (r) return { text: r, brain: "IA local (sin clave)" }; } catch {}
     }
-    return null; // cerebro local (buscador + matemáticas) — sin ventanas emergentes
+    return null; // solo sin APEX: cerebro local utilitario (buscador + matemáticas)
   }
 
   const history = [
@@ -518,20 +515,23 @@ function ownAnswer(q) {
     setStatus("PENSANDO", true);
     state.busy = true;
     try {
-      let reply, brainName = null, aiFailed = true;
+      let reply, brainName = null;
       try {
         const ai = await callAI([...history, userMsg]);
         if (ai) {
           reply = typeof ai === "string" ? ai : ai.text;
           brainName = (typeof ai === "object" && ai.brain) ? ai.brain : null;
-          aiFailed = false;
         }
-      } catch { reply = null; } // la nube falló: seguimos con mi cerebro local, sin dramas
+      } catch { reply = null; } // falló la nube: tratamos según si hay APEX
       if (!reply) {
-        reply = await localBrain(text);
-        brainName = brainName || "Cerebro local";
-        if (aiFailed && teamConfigs().length > 0)
-          reply += "\n\n*(ℹ️ Los cerebros de APEX no respondieron (clave o conexión). Revisa en «Configurar» → «Probar conexión».)*";
+        if (teamConfigs().length > 0) {
+          // Hay claves API configuradas → PROHIBIDO usar cerebro sin API
+          reply = "*(📡 Los cerebros de APEX no respondieron: ninguna clave/API contestó en este intento. Revisa en «Configurar» → «Probar conexión»: Gemini, Groq y OpenRouter cierran desde la web; Nemotron solo por tu app local. Repara la conexión y vuelve a preguntar.)*";
+          brainName = null;
+        } else {
+          reply = await localBrain(text);
+          brainName = brainName || "Cerebro local";
+        }
       }
       if (!reply) reply = "No tengo señal en este momento. Intenta de nuevo o conéctame una IA (Gemini gratis) en «Configurar».";
       history.push(userMsg, { role: "assistant", content: reply });
@@ -547,7 +547,7 @@ function ownAnswer(q) {
       moonSay("⚠️ Algo falló internamente: " + esc(e.message));
     } finally {
       state.busy = false;
-      setStatus(state.camOn ? "VISIÓN ACTIVA" : "EN LÍNEA");
+      setStatus(state.camOn ? "VISIÓN ACTIVA" : (!state.handsFree && wakeEnabled ? VIGIL_TXT() : "EN LÍNEA"));
     }
   }
 
@@ -615,6 +615,7 @@ function ownAnswer(q) {
         rec = null;
         if (handsTranscript) {
           const { rest, hadWake } = wakeStrip(handsTranscript);
+          if (wakeSleepPhrase(rest || handsTranscript)) { doSleep(); handsTranscript = ""; return; }
           if (rest && rest.length > 1) voiceAnswer(rest);
           else if (hadWake) { setStatus("EN ESCUCHA · HABLA O APLAUDE", true); speak("Te escucho. Dime."); }
         }
@@ -674,8 +675,12 @@ function ownAnswer(q) {
             burst = [];
             if (now - lastClapAt > 4000) {
               lastClapAt = now;
-              setStatus("🫡 TE ESCUCHO (aplauso)", true);
-              speak("Te escucho. Dime.");
+              if (!state.handsFree && wakeEnabled) {
+                wakeUp("aplausos"); // 😴→🫡 despertar con 2 palmadas
+              } else if (state.handsFree) {
+                setStatus("🫡 TE ESCUCHO (aplauso)", true);
+                speak("Te escucho. Dime.");
+              }
             }
           }
         }
@@ -694,14 +699,78 @@ function ownAnswer(q) {
       startRec();
       startClaps();
     } else {
-      setStatus("EN LÍNEA");
       stopClaps();
       stopRec();
       state.listening = false;
       $("btnMic").textContent = "🎤";
+      if (wakeEnabled) { setStatus(VIGIL_TXT(), true); startClaps(); startWakeRec(); }
+      else setStatus("EN LÍNEA");
     }
   }
   $("btnHandsFree").addEventListener("click", () => setHandsFree(!state.handsFree));
+
+  // ---------- MODO VIGILANTE: la app DUERME y despierta con 2 aplausos o «Moon Light on» ----------
+  let wakeEnabled = false, wakeRec = null;
+  function VIGIL_TXT() { return "🔔 VIGILANTE · aplaude ×2 o di «Moon Light on»"; }
+
+  function stopWakeRec() { try { wakeRec?.abort(); } catch {} try { wakeRec?.stop(); } catch {} wakeRec = null; }
+
+  function startWakeRec() {
+    if (!wakeEnabled || state.handsFree || !SR || wakeRec) return;
+    try {
+      const r = mkRec();
+      r.continuous = false;
+      wakeRec = r;
+      r.onresult = (e) => {
+        const t = (" " + Array.from(e.results).map((x) => x[0].transcript).join(" ").toLowerCase()
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, "") + " ").replace(/\s+/g, " ").trim();
+        if (/\bmoon\s*light\b|\bmoonlight\b/.test(t)) { stopWakeRec(); wakeUp("voz"); }
+      };
+      r.onend = () => { wakeRec = null; if (wakeEnabled && !state.handsFree) setTimeout(startWakeRec, 400); };
+      r.onerror = () => { wakeRec = null; if (wakeEnabled && !state.handsFree) setTimeout(startWakeRec, 1200); };
+      r.start();
+    } catch { wakeRec = null; }
+  }
+
+  function wakeUp(reason) {
+    if (state.handsFree) return;
+    setHandsFree(true); // enciende micrófono + manos libres (escucha continua + aplausos)
+    addMsg("moon", '<span class="who">🔔 Vigilante</span> me activaste con ' + (reason === "aplausos" ? "2 aplausos 👏" : "«Moon Light on» 🎙️") + ". Aquí estoy.");
+    if (reason === "aplausos") { setStatus("🫡 TE ESCUCHO (aplauso)", true); speak("¿Sí? Aquí estoy. Dime."); }
+    else { setStatus("EN ESCUCHA · HABLA", true); speak("¡Moon Light, aquí estoy! Dime."); }
+  }
+
+  function doSleep() {
+    setHandsFree(false);
+    state.listening = false;
+    $("btnMic").textContent = "🎤";
+    if (wakeEnabled) { startClaps(); startWakeRec(); }
+    speak("Hasta luego. Quedo vigilando.");
+    setStatus(VIGIL_TXT(), true);
+  }
+
+  function wakeSleepPhrase(txt) {
+    const t = " " + (txt || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") + " ";
+    return /\b(moon\s*light|moonlight|\boye\s+moon)\b.*\b(duerme|dormir|apaga|descansa|vete|a\s+dormir|a\s+descansar|hasta\s+luego|fuera|bye)\b/.test(t);
+  }
+
+  function setVigil(on) {
+    wakeEnabled = on;
+    const b = $("btnVigil");
+    if (b) { b.classList.toggle("primary", on); b.textContent = on ? "🔔 VIGILANTE: ON" : "🔔 VIGILANTE"; }
+    if (on) {
+      if (!state.handsFree) {
+        setStatus(VIGIL_TXT(), true);
+        startClaps();
+        startWakeRec();
+      }
+    } else {
+      stopWakeRec();
+      stopClaps();
+      if (!state.handsFree) setStatus("EN LÍNEA");
+    }
+  }
+  $("btnVigil").addEventListener("click", () => setVigil(!wakeEnabled));
 
   // ---------- Cámara (detecta Y interactúa con tu movimiento) ----------
   let camStream = null, motionAllowed = true, lastFrame = null, firstLook = true;
