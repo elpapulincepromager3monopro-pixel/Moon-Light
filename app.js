@@ -397,6 +397,7 @@ function ownAnswer(q) {
     if (main && main.key && !list.some((c) => c.provider === main.provider)) list.unshift(main);
     return list;
   }
+  const isLocalApp = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
   function brainOrder(q) {
     const team = teamConfigs();
     const code = /(codigo|program|script|funcion|matriz|debugar|debug|error de|correg|escribeme un|hazme un|python|javascript|html|css)/.test(q);
@@ -405,6 +406,7 @@ function ownAnswer(q) {
     const order = [];
     for (const p of wanted) { const c = team.find((x) => x.provider === p); if (c && !order.includes(c)) order.push(c); }
     for (const c of team) if (!order.includes(c)) order.push(c);
+    if (!isLocalApp) return order.filter((c) => c.provider !== "nvidia"); // Nemotron solo funciona en tu PC
     return order;
   }
   function brainLaneName(cfg) {
@@ -1245,6 +1247,25 @@ function ownAnswer(q) {
       alert("✘ Fallo: " + msg + (msg.includes("Failed to fetch") ? "\n\nEl navegador bloquea esta API (CORS). De las gratuitas de web, usa Gemini, Groq u OpenRouter. Nemotron solo funciona desde tu PC con el servidor local abierto." : ""));
     } finally { $("btnTestApi").textContent = "Probar conexión"; }
   });
+  $("btnSweep").addEventListener("click", async () => {
+    const team = teamConfigs();
+    if (!team.length) { alert("No hay cerebros guardados. Guarda claves en «Configurar» primero."); return; }
+    moonSay("🩺 Probando los " + team.length + " cerebros del APEX uno por uno…");
+    const lines = ["**Resultado de cada cerebro:**"];
+    for (const cfg of team) {
+      const started = Date.now();
+      try {
+        let t;
+        if (PROVIDERS[cfg.provider]?.type === "anthropic") t = await callClaude(cfg, [{ role: "user", content: "Responde solo: OK" }]);
+        else t = await runCfg(cfg, [{ role: "user", content: "Responde solo: OK" }]);
+        lines.push((t ? "✅" : "⚠️") + " **" + esc(brainLaneName(cfg)) + "** → " + (t ? "OK" : "respuesta vacía") + " (" + (Date.now() - started) + " ms)");
+      } catch (e) {
+        lines.push("❌ **" + esc(brainLaneName(cfg)) + "** → " + esc(String(e.message || e)) + " (" + (Date.now() - started) + " ms)");
+      }
+    }
+    lines.push("\n*Si algo sale ❌, dime qué dice y lo arreglo al momento.*");
+    moonSay(lines.join("\n"));
+  });
   $("btnClearApi").addEventListener("click", () => {
     for (const k of Object.keys(localStorage)) if (k === "jarvis.api" || k.indexOf("jarvis.api.") === 0) localStorage.removeItem(k);
     updateApiState();
@@ -1283,7 +1304,6 @@ function ownAnswer(q) {
   } catch {}
 
   // Vigilante: en la app de PC (localhost) arranca SIEMPRE solo; en internet solo si ya se activó
-  const isLocalApp = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
   try {
     if ((isLocalApp || localStorage.getItem("jarvis.vigil") === "1") && !state.handsFree)
       setTimeout(() => setVigil(true), 900);
