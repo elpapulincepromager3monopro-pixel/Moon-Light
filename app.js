@@ -1247,22 +1247,29 @@ function ownAnswer(q) {
       alert("✘ Fallo: " + msg + (msg.includes("Failed to fetch") ? "\n\nEl navegador bloquea esta API (CORS). De las gratuitas de web, usa Gemini, Groq u OpenRouter. Nemotron solo funciona desde tu PC con el servidor local abierto." : ""));
     } finally { $("btnTestApi").textContent = "Probar conexión"; }
   });
-  $("btnSweep").addEventListener("click", async () => {
+$("btnSweep").addEventListener("click", async () => {
     const team = teamConfigs();
     if (!team.length) { alert("No hay cerebros guardados. Guarda claves en «Configurar» primero."); return; }
     moonSay("🩺 Probando los " + team.length + " cerebros del APEX uno por uno…");
     const lines = ["**Resultado de cada cerebro:**"];
-    for (const cfg of team) {
+    const laneTest = async (cfg) => {
+      const name = brainLaneName(cfg);
       const started = Date.now();
+      moonSay("⏳ Probando **" + esc(name) + "**…");
       try {
-        let t;
-        if (PROVIDERS[cfg.provider]?.type === "anthropic") t = await callClaude(cfg, [{ role: "user", content: "Responde solo: OK" }]);
-        else t = await runCfg(cfg, [{ role: "user", content: "Responde solo: OK" }]);
-        lines.push((t ? "✅" : "⚠️") + " **" + esc(brainLaneName(cfg)) + "** → " + (t ? "OK" : "respuesta vacía") + " (" + (Date.now() - started) + " ms)");
+        const r = await Promise.race([
+          (async () => {
+            try { return await runCfg(cfg, [{ role: "user", content: "Responde solo: OK" }]); }
+            catch (e) { throw e; }
+          })(),
+          new Promise((_, rej) => setTimeout(() => rej(new Error("Agotado el tiempo (12 s)")), 12000))
+        ]);
+        lines.push("✅ **" + esc(name) + "** → " + (r ? "OK" : "respuesta vacía") + " (" + (Date.now() - started) + " ms)");
       } catch (e) {
-        lines.push("❌ **" + esc(brainLaneName(cfg)) + "** → " + esc(String(e.message || e)) + " (" + (Date.now() - started) + " ms)");
+        lines.push("❌ **" + esc(name) + "** → " + esc(String(e.message || e)) + " (" + (Date.now() - started) + " ms)");
       }
-    }
+    };
+    for (const cfg of team) await laneTest(cfg);
     lines.push("\n*Si algo sale ❌, dime qué dice y lo arreglo al momento.*");
     moonSay(lines.join("\n"));
   });
