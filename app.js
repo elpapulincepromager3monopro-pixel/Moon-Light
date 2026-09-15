@@ -734,6 +734,7 @@ function ownAnswer(q) {
 
   function wakeUp(reason) {
     if (state.handsFree) return;
+    try { window.focus(); } catch {} // trae la ventana al frente aunque esté minimizada
     setHandsFree(true); // enciende micrófono + manos libres (escucha continua + aplausos)
     addMsg("moon", '<span class="who">🔔 Vigilante</span> me activaste con ' + (reason === "aplausos" ? "2 aplausos 👏" : "«Moon Light on» 🎙️") + ". Aquí estoy.");
     if (reason === "aplausos") { setStatus("🫡 TE ESCUCHO (aplauso)", true); speak("¿Sí? Aquí estoy. Dime."); }
@@ -756,6 +757,7 @@ function ownAnswer(q) {
 
   function setVigil(on) {
     wakeEnabled = on;
+    try { localStorage.setItem("jarvis.vigil", on ? "1" : "0"); } catch {}
     const b = $("btnVigil");
     if (b) { b.classList.toggle("primary", on); b.textContent = on ? "🔔 VIGILANTE: ON" : "🔔 VIGILANTE"; }
     if (on) {
@@ -1176,7 +1178,14 @@ function ownAnswer(q) {
 
   // ---------- Inicio ----------
   updateApiState();
-  moonSay("Bienvenido a MOON LIGHT. Ya estoy aquí para ti. 🌙\n\n**HÁBIL**: respuestas de verdad (razono antes de hablar). Para el 100% de mi cerebro conecta una clave gratis de Gemini en Configurar.\n**Cámara** 🎥: actívala y muévete con la mano → interactúo contigo. También hay voz 🎤.\n**Archivos** 📁: crear, editar, mejorar y borrar dentro de la carpeta que elijas.\n**Web** 🔎: si preguntas algo, busco resultados con enlaces en el chat.");
+  moonSay("Bienvenido a MOON LIGHT. Ya estoy aquí para ti. 🌙\n\n**HÁBIL**: respuestas de verdad (razono antes de hablar). Para el 100% de mi cerebro conecta una clave gratis de Gemini en Configurar.\n**Cámara** 🎥: actívala y muévete con la mano → interactúo contigo. También hay voz 🎤.\n**Archivos** 📁: crear, editar, mejorar y borrar dentro de la carpeta que elijas.\n**Web** 🔎: si preguntas algo, busco resultados con enlaces en el chat.\n**Vigilante** 🔔: en la app de PC queda escuchando sola; aplaude 2 veces o di «Moon Light on» y te atiende.");
+
+  // Vigilante: en la app de PC (localhost) arranca SIEMPRE solo; en internet solo si ya se activó
+  const isLocalApp = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  try {
+    if ((isLocalApp || localStorage.getItem("jarvis.vigil") === "1") && !state.handsFree)
+      setTimeout(() => setVigil(true), 900);
+  } catch {}
   setStatus("EN LÍNEA");
   // Arranca la IA sin clave en segundo plano (si tu PC lo soporta y no usas API)
   if (brainMode() !== "api" && navigator.gpu && navigator.gpu.requestAdapter) {
