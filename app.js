@@ -301,7 +301,7 @@ function ownAnswer(q) {
   const PROVIDERS = {
     gemini: { name: "Google Gemini", type: "openai", base: "https://generativelanguage.googleapis.com/v1beta/openai/", model: "gemini-2.0-flash", models: ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-2.5-pro"], info: "Clave GRATIS: entra a aistudio.google.com/apikey → Create API key, copia y pégala abajo. Modelo actual RECOMENDADO: gemini-2.0-flash (los demás pueden dar 404 si Google ya los retiró)." },
     nvidia:    { name: "NVIDIA NIM (Nemotron 3 Ultra)", type: "openai",    base: "https://integrate.api.nvidia.com/v1", model: "nvidia/nemotron-3-ultra-550b-a55b", models: ["nvidia/nemotron-3-ultra-550b-a55b", "nvidia/nemotron-4-340b-instruct", "meta/llama-3.1-70b-instruct"], info: "Clave GRATIS (sin tarjeta): build.nvidia.com → «Get API Key» (arriba a la derecha) → copia la clave «nvapi-…» y pégala abajo. ⚠️ NVIDIA bloquea las llamadas desde el navegador: solo responde cuando MOON LIGHT corre en tu PC (localhost:3000) con el servidor local abierto. En la web pública, puede darte «Failed to fetch»: es normal, usa otro cerebro." },
-    openrouter: { name: "OpenRouter",      type: "openai",    base: "https://openrouter.ai/api/v1", model: "openrouter/auto", models: ["openrouter/auto", "deepseek/deepseek-chat", "meta-llama/llama-3.3-70b-instruct", "anthropic/claude-3.5-sonnet", "openai/gpt-4o-mini"], info: "Clave GRATIS: entra a openrouter.ai → Create account → Keys → Create Key. Da acceso a OpenAI, Claude y todos, incluso modelos gratis." },
+    openrouter: { name: "OpenRouter",       type: "openai",    base: "https://openrouter.ai/api/v1", model: "meta-llama/llama-3.1-8b-instruct:free", models: ["meta-llama/llama-3.1-8b-instruct:free", "deepseek/deepseek-chat-v3-0324:free", "moonshotai/kimi-k2-instruct:free", "nousresearch/hermes-3-llama-3.1-405b:free"], info: "Clave GRATIS: entra a openrouter.ai → Create account → Keys → Create Key. Usa modelos «*:free*»: al elegir uno con «:free» (gratis, sin saldo), OpenRouter contesta desde la web. Si usas un modelo de pago sin saldo da 402: selecciona uno con «:free»." },
     groq:      { name: "Groq",             type: "openai",    base: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile", models: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"], info: "Clave GRATIS: entra a console.groq.com/keys → Create API Key. Muy rápida." },
     cerebras:  { name: "Cerebras",         type: "openai",    base: "https://api.cerebras.ai/v1", model: "llama-3.3-70b", models: ["llama-3.3-70b", "llama-3.3-8b"], info: "Clave GRATIS: entra a cloud.cerebras.ai → API Keys → Create. La más veloz del mundo." },
     openai:    { name: "OpenAI",           type: "openai",    base: "https://api.openai.com/v1", model: "gpt-4o-mini", models: ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"], info: "De pago: platform.openai.com → API keys. Necesita saldo." },
@@ -370,14 +370,40 @@ function ownAnswer(q) {
         }
       } catch { /* si no hay servidor local, cae al intento directo */ }
     }
-    const body = { model: cfg.model, messages: history, temperature: 0.6, max_tokens: 2048 };
-    const res = await fetchWithTimeout(effBase(cfg) + "/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.key}` },
-      body: JSON.stringify(body)
-    }, 45000);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const j = await res.json();
+    const providerDef = PROVIDERS[cfg.provider];
+    const callWithModel = async (mdl) => {
+      const body = { model: mdl, messages: history, temperature: 0.6, max_tokens: 2048 };
+      const res = await fetchWithTimeout(effBase(cfg) + "/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.key}` },
+        body: JSON.stringify(body)
+      }, 45000);
+      const raw = await res.text().catch(() => "");
+      if (!res.ok) {
+        const err = new Error("HTTP " + res.status + (raw ? " " + String(raw).slice(0, 140) : ""));
+        err.status = res.status;
+        throw err;
+      }
+      return JSON.parse(raw || "{}");
+    };
+    let j;
+    try {
+      j = await callWithModel(cfg.model);
+    } catch (e) {
+      if ((e.status === 404 || e.status === 400) && providerDef && providerDef.models && providerDef.models.length && cfg.model !== providerDef.model) {
+        cfg.model = providerDef.model;
+        for (const k of Object.keys(localStorage)) {
+          if (k.indexOf("jarvis.api.") === 0) {
+            try {
+              const c = JSON.parse(localStorage.getItem(k) || "null");
+              if (c && c.provider === cfg.provider) { c.model = cfg.model; localStorage.setItem(k, JSON.stringify(c)); }
+            } catch {}
+          }
+        }
+        moonSay("🔧 Tu modelo de **" + esc(providerDef.name) + "** estaba retirado (404): lo cambié **solo** al vigente **`" + esc(cfg.model) + "`** y lo guardé por ti. 😉");
+        j = await callWithModel(cfg.model);
+      } else throw e;
+    }
     return j.choices?.[0]?.message?.content || null;
   }
 
