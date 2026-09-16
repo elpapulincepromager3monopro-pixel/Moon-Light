@@ -415,7 +415,11 @@ function ownAnswer(q) {
       for (const k of Object.keys(localStorage)) {
         if (k.indexOf("jarvis.api.") === 0) {
           const c = JSON.parse(localStorage.getItem(k) || "null");
-          if (c && c.key && c.model) list.push(c);
+          if (c && c.key && c.model) {
+            const clean = String(c.key).replace(/[^\x20-\x7E]/g, "").trim();
+            if (clean !== c.key) { c.key = clean; try { localStorage.setItem(k, JSON.stringify(c)); } catch {} }
+            list.push(c);
+          }
         }
       }
     } catch {}
