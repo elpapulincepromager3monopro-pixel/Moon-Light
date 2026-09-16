@@ -429,15 +429,11 @@ function ownAnswer(q) {
   }
   const isLocalApp = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
   function brainOrder(q) {
-    const team = teamConfigs();
-    const code = /(codigo|program|script|funcion|matriz|debugar|debug|error de|correg|escribeme un|hazme un|python|javascript|html|css)/.test(q);
-    const fast = /(rapido|rapida|veloz|que hora|cuanto es|\d+\s*[-+*/])/.test(q);
-    const wanted = code ? BRAIN_LANES : fast ? ["groq", "cerebras", "gemini", "nvidia", "openrouter", "deepseek", "openai", "claude"] : ["gemini", "nvidia", "openrouter", "groq", "cerebras", "deepseek", "openai", "claude"];
-    const order = [];
-    for (const p of wanted) { const c = team.find((x) => x.provider === p); if (c && !order.includes(c)) order.push(c); }
-    for (const c of team) if (!order.includes(c)) order.push(c);
-    if (!isLocalApp) return order.filter((c) => c.provider !== "nvidia"); // Nemotron solo funciona en tu PC
-    return order;
+    // 🎯 APEX = SOLO NEMOTRON (Nemotron 3 Ultra). Es el cerebro principal y único.
+    // Si Nemotron está guardado, se usa exclusivamente; el resto del equipo queda EN RESERVA
+    // (no se consulta, para que no haya confusión ni tiempos muertos).
+    const nv = teamConfigs().find((x) => x.provider === "nvidia");
+    return nv ? [nv] : [];
   }
   function brainLaneName(cfg) {
     return PROVIDERS[cfg.provider] ? PROVIDERS[cfg.provider].name : (cfg.model || "IA");
