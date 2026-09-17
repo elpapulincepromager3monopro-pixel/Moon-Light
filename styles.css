@@ -127,19 +127,19 @@ body::after {
   text-shadow: 0 0 10px rgba(255,215,0,0.45);
 }
 
-/* ---- PLANETA DORADO SOLIDO GIRANDO (fondo del chat) ---- */
+/* ---- LUNA GIRANDO (fondo del chat) ---- */
 .chatPanel { overflow: hidden; }
 .orb {
   position: absolute; inset: 0; z-index: 0; pointer-events: none;
   display: flex; align-items: center; justify-content: center;
 }
-.goldPlanet {
+.moonOrb {
   position: relative; width: 340px; height: 340px;
   border-radius: 50%;
   box-shadow:
-    0 0 80px 18px rgba(255,200,60,0.35),
-    0 0 180px 70px rgba(255,170,30,0.18),
-    inset 0 0 40px rgba(255,150,0,0.35);
+    0 0 80px 18px rgba(190,215,245,0.35),
+    0 0 180px 70px rgba(160,195,240,0.20),
+    inset 0 0 40px rgba(150,180,220,0.30);
 }
 
 @keyframes holoBoostKey { 0%,100% { filter: drop-shadow(0 0 20px rgba(255,200,60,0.6)); } 50% { filter: drop-shadow(0 0 45px rgba(255,220,110,0.95)); } }

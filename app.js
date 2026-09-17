@@ -1044,43 +1044,51 @@ Los marcadores no se ven: los ejecuta el sistema, responde siempre al usuario co
     camStatus.textContent = motionAllowed ? camIdle() : "Interacción por movimiento DESACTIVADA";
   });
 
-  // ==================== PLANETA DORADO SOLIDO GIRANDO ====================
+  // ==================== LUNA BLANCA GIRANDO (fondo del chat) ====================
   const orbEl = document.querySelector(".orb");
-  const gpEl = $("goldPlanet");
+  const gpEl = $("moonOrb");
   if (gpEl) {
-    const G = 260;
+    const G = 300;
     gpEl.width = G; gpEl.height = G;
     const gctx = gpEl.getContext("2d");
-    // Textura equirectangular dorada (bandas y turbulencias)
+    // Textura equirectangular lunar (gris perla con mares y crateres)
     const TWD = 512, THD = 256;
     const tex = document.createElement("canvas");
     tex.width = TWD; tex.height = THD;
     const tc = tex.getContext("2d");
-    const golds = ["#8a5e00", "#b8860b", "#d4a017", "#f2c14e", "#ffe066", "#b8860b", "#7a5200", "#d4a017", "#ffd700"];
+    const moons = ["#cfd4dc", "#aeb5c0", "#9aa2b0", "#c3c9d3", "#b8bfca", "#d4d9e0", "#a4acb8"];
     for (let y = 0; y < THD; y++) {
-      const g1 = golds[Math.floor(y / 28) % golds.length];
-      const g2 = golds[Math.floor((y + 14) / 28) % golds.length];
-      tc.fillStyle = g1;
+      tc.fillStyle = moons[Math.floor(y / 32) % moons.length];
       tc.fillRect(0, y, TWD, 1);
     }
-    // relieve: manchas/montañas doradas mas oscuras y brillantes
-    for (let i = 0; i < 9000; i++) {
-      const x = Math.floor(Math.random() * TWD);
-      const y = Math.floor(Math.random() * THD);
-      const v = Math.floor(Math.random() * 3);
-      tc.fillStyle = v === 0 ? "rgba(255,230,110,0.12)" : v === 1 ? "rgba(90,55,0,0.28)" : "rgba(255,240,170,0.10)";
-      tc.fillRect(x, y, 2 + Math.random() * 3, 1);
+    // mares lunares (manchas oscuras)
+    for (let i = 0; i < 24; i++) {
+      const cx = Math.random() * TWD, cy = Math.random() * THD;
+      const r = 16 + Math.random() * 72;
+      const mg = tc.createRadialGradient(cx, cy, 0, cx, cy, r);
+      mg.addColorStop(0, "rgba(60,72,92,0.50)");
+      mg.addColorStop(1, "rgba(60,72,92,0)");
+      tc.fillStyle = mg;
+      tc.beginPath(); tc.arc(cx, cy, r, 0, Math.PI * 2); tc.fill();
     }
-    // nubes sutilmente mas claras
-    for (let i = 0; i < 2600; i++) {
-      const x = Math.floor(Math.random() * TWD);
-      tc.fillStyle = "rgba(255,245,190,0.05)";
-      tc.fillRect(x, Math.floor(Math.random() * THD), 3 + Math.random() * 8, 1);
+    // crateres (borde claro + centro oscuro)
+    for (let i = 0; i < 46; i++) {
+      const cx = Math.random() * TWD, cy = Math.random() * THD;
+      const r = 2 + Math.random() * 10;
+      tc.fillStyle = "rgba(196,204,216,0.9)";
+      tc.beginPath(); tc.arc(cx, cy, r, 0, Math.PI * 2); tc.fill();
+      tc.fillStyle = "rgba(66,78,96,0.85)";
+      tc.beginPath(); tc.arc(cx + r * 0.25, cy + r * 0.25, r * 0.62, 0, Math.PI * 2); tc.fill();
+    }
+    // grano fino de la superficie
+    for (let i = 0; i < 5200; i++) {
+      tc.fillStyle = Math.random() > 0.5 ? "rgba(255,255,255,0.06)" : "rgba(28,36,52,0.08)";
+      tc.fillRect(Math.floor(Math.random() * TWD), Math.floor(Math.random() * THD), 2, 1);
     }
     const PIX = gctx.createImageData(G, G);
     const td = tc.getImageData(0, 0, TWD, THD).data;
     let ang = 0;
-    function drawGold() {
+    function drawMoon() {
       gctx.putImageData(PIX, 0, 0);
       const R = G / 2;
       const ca = Math.cos(ang), sa = Math.sin(ang);
@@ -1099,32 +1107,32 @@ Los marcadores no se ven: los ejecuta el sistema, responde siempre al usuario co
           let v = Math.round((90 - lat) / 180 * THD) % THD;
           if (u < 0) u += TWD; if (v < 0) v += THD;
           const ti = (v * TWD + u) * 4;
-          // luz esferica (sol desde arriba-izquierda) + especular
+          // luz esferica suave (luz de luna desde arriba-izquierda) + especular
           const drel = Math.max(0, (nx * -0.45 + nz * -0.89 + 1) / 2);
-          const light = 0.42 + 0.58 * drel;
-          const rim = Math.max(0, rx);
-          const spec = Math.pow(Math.max(0, rx * -1 + 0.4), 6) * 0.55;
+          const light = 0.48 + 0.52 * drel;
+          const spec = Math.pow(Math.max(0, rx * -1 + 0.3), 6) * 0.16;
           const idx = (py * G + px) * 4;
           PIX.data[idx] = td[ti] * light + 255 * spec;
-          PIX.data[idx + 1] = td[ti + 1] * light + 235 * spec;
-          PIX.data[idx + 2] = td[ti + 2] * light + 170 * spec;
+          PIX.data[idx + 1] = td[ti + 1] * light + 250 * spec;
+          PIX.data[idx + 2] = td[ti + 2] * light + 245 * spec;
           PIX.data[idx + 3] = 255;
         }
       }
       gctx.putImageData(PIX, 0, 0);
-      // brillo especular amplio + halo
-      const gl = gctx.createRadialGradient(R * 0.78, R * 0.76, R * 0.1, R * 0.78, R * 0.76, R * 0.9);
-      gl.addColorStop(0, "rgba(255,244,190,0.18)");
-      gl.addColorStop(1, "rgba(255,244,190,0)");
+      // brillo amplio + halo argentado
+      const gl = gctx.createRadialGradient(R * 0.80, R * 0.78, R * 0.1, R * 0.80, R * 0.78, R * 0.9);
+      gl.addColorStop(0, "rgba(220,235,255,0.14)");
+      gl.addColorStop(1, "rgba(220,235,255,0)");
       gctx.fillStyle = gl; gctx.fillRect(0, 0, G, G);
-      ang += 0.003;
-      requestAnimationFrame(drawGold);
+      ang += 0.0025;
+      requestAnimationFrame(drawMoon);
     }
-    requestAnimationFrame(drawGold);
-    window.boostGold = function () {
-      gpEl.style.boxShadow = "0 0 130px 35px rgba(255,210,80,0.65), 0 0 240px 90px rgba(255,180,40,0.35)";
-      setTimeout(() => { gpEl.style.boxShadow = "0 0 80px 18px rgba(255,200,60,0.35), 0 0 180px 70px rgba(255,170,30,0.18)"; }, 1500);
+    requestAnimationFrame(drawMoon);
+    window.boostMoon = function () {
+      gpEl.style.boxShadow = "0 0 130px 35px rgba(200,225,255,0.60), 0 0 240px 90px rgba(150,190,255,0.30)";
+      setTimeout(() => { gpEl.style.boxShadow = "0 0 80px 18px rgba(190,215,245,0.35), 0 0 180px 70px rgba(160,195,240,0.20)"; }, 1500);
     };
+    window.boostGold = window.boostMoon;
   }
 
   // ==================== ACCESO A TU PC + LUZ VERDE ====================
@@ -1386,7 +1394,7 @@ Los marcadores no se ven: los ejecuta el sistema, responde siempre al usuario co
     const shape = SHAPES[theme]();
     HOLO.shape = shape; HOLO.theme = theme; HOLO.on = true; HOLO.born = Date.now(); HOLO.t = 0;
     if (orbEl) { orbEl.classList.add("holoBoost"); setTimeout(() => orbEl.classList.remove("holoBoost"), 1500); }
-    if (window.boostGold) window.boostGold();
+    if (window.boostMoon) window.boostMoon();
   }
 
   function holoDraw() {

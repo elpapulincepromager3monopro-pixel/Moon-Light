@@ -1,0 +1,13 @@
+# Datos del perfil de navegador (privados: cookies, historial, caches)
+MOON LIGHT App/perfil/
+MOON LIGHT App/perfil-edge/
+
+# Registros y procesos en ejecución
+moonlight.log
+moonlight.pid
+
+# Descartables / paquetes
+0
+moon-light-web-publico.zip
+*.zip
+node_modules/
