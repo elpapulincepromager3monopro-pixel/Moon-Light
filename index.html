@@ -41,6 +41,7 @@
         <div class="satWrap"><span class="sat s1"></span></div>
         <div class="satWrap2"><span class="sat s2"></span></div>
       </div>
+      <canvas id="holoCanvas" class="holoCanvas" aria-hidden="true"></canvas>
       <div class="panelHead">
         <h2>CONSOLA</h2>
         <button class="ghost" id="btnClear">Limpiar</button>
@@ -53,6 +54,13 @@
         <button class="ghost" id="btnHandsFree" title="Manos libres: di MOON LIGHT o aplaude, habla y te respondo hablando">🤫 MANOS LIBRES</button>
         <button class="ghost" id="btnVigil" title="Modo vigía: la app se mantiene en espera y se activa con 2 aplausos o diciendo «Moon Light on»">🔔 VIGILANTE</button>
         <button class="primary" id="btnSend">ENVIAR</button>
+      </div>
+      <div class="lightGreen hidden" id="lightGreen">
+        <span>🟢 ¿LUZ VERDE para que ejecute: <b id="lightGreenWhat"></b>?</span>
+        <div class="rowBtns">
+          <button class="primary" id="btnLightOk">✅ LUZ VERDE</button>
+          <button class="danger" id="btnLightNo">✖️ Cancelar</button>
+        </div>
       </div>
     </section>
 
@@ -83,6 +91,22 @@
         <div class="rowBtns">
           <button class="ghost" id="btnShot" disabled>📸 Capturar</button>
           <button class="ghost" id="btnMotion">Interactuar con mov.</button>
+        </div>
+      </section>
+
+      <section class="panel conPanel">
+        <div class="panelHead">
+          <h2>🖥️ ACCESO A TU PC <span class="tagLocal">solo PC</span></h2>
+          <span class="hint" id="pcHint">MOON LIGHT captura tu pantalla/ventana para VERLA de verdad, abre programas, escribe texto y pulsa teclas. Todo queda en tu PC.</span>
+        </div>
+        <div class="rowBtns">
+          <button class="primary" id="btnSee" title="Captura tu pantalla y la VE">👁️ OJOS</button>
+          <button class="ghost" id="btnSeeWin" title="Captura solo la ventana activa">🪟 Ver ventana</button>
+        </div>
+        <div class="rowBtns">
+          <button class="ghost" id="btnOpenApp" title="Abre un programa, archivo, carpeta o URL">🚀 Abrir</button>
+          <button class="ghost" id="btnTypeKeys" title="Escribe texto en cualquier app">⌨️ Escribir</button>
+          <button class="ghost" id="btnKeySend" title="Pulsa teclas: {ENTER}, ^{c}, {TAB}…">🔑 Teclas</button>
         </div>
       </section>
 

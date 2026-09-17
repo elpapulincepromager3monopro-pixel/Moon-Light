@@ -313,3 +313,35 @@ input:focus, select:focus { outline: none; border-color: var(--gold); box-shadow
   .sideCol { grid-template-rows: none; }
   .camWrap { min-height: 220px; }
 }
+
+/* ---------- Hologramas 3D + LUZ VERDE ---------- */
+.holoCanvas {
+  position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%;
+  pointer-events: none; opacity: .9;
+}
+.orb.holoBoost { filter: drop-shadow(0 0 30px rgba(80,220,255,0.8)); }
+.orb.holoColor { filter: drop-shadow(0 0 40px rgba(255,80,200,0.8)); }
+.modShake { animation: modShake .45s linear; }
+@keyframes modShake {
+  0%,100% { transform: translate(0,0); }
+  20% { transform: translate(-9px,4px); }
+  40% { transform: translate(9px,-4px); }
+  60% { transform: translate(-6px,-3px); }
+  80% { transform: translate(6px,3px); }
+}
+.lightGreen {
+  position: relative; z-index: 2; margin: 4px 6px 8px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  padding: 10px 12px; border-radius: 10px;
+  background: linear-gradient(170deg, rgba(6,40,20,0.92), rgba(3,12,7,0.95));
+  border: 1px solid rgba(60,255,140,0.55);
+  box-shadow: 0 0 22px rgba(60,255,140,0.25);
+  color: #e8ffe8; font-size: 13px;
+}
+.lightGreen span { flex: 1; min-width: 200px; }
+.lightGreen .rowBtns { display: flex; gap: 8px; }
+.lightGreen button { font-size: 12px; padding: 6px 12px; }
+.tagLocal {
+  font-size: 10px; letter-spacing: 1px; color: #7fe8a0;
+  border: 1px solid rgba(127,232,160,0.5); border-radius: 4px; padding: 1px 6px; margin-left: 6px;
+}

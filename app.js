@@ -53,6 +53,8 @@
   }
   function moonSay(text) {
     let html = esc(text);
+    html = html.replace(/\[\[HOLO:[a-z]+\]\]/gi, ""); // marcador de holograma: invisible
+    html = html.replace(/\[\[PC:[^\]]*\]\]/gi, ""); // marcador de mando PC: invisible
     html = html.replace(/\[\[GOOGLE:(.*?)\]\]/g, (_, q) =>
       ` <a class="gBtn" href="https://www.google.com/search?q=${encodeURIComponent(q)}" target="_blank" rel="noopener">🔎 Buscar en Google</a>`);
     html = html.replace(/\[\[URL:((?:https?:\/\/)[^\]]*?)\|((?:[^\]]*?))\]\]/gi, (_, u, l) =>
@@ -540,7 +542,15 @@ function ownAnswer(q) {
     return null; // solo sin APEX: cerebro local utilitario (buscador + matemáticas)
   }
 
-  const SYSTEM_MSG = { role: "system", content: `Eres MOON LIGHT, la inteligencia de un asistente personal tipo HUD futurista. Hablas español con naturalidad, como un "bro" que sabe mucho de tecnología. Conciso y directo: pocas palabras, golpes de humor, cero ñoñerías. Respondes de verdad (no pegas textos): primero razonas y luego respondes. Cuando el usuario pide programar, escribir código, explicar algo técnico o resolver un problema, lo haces al momento con el mejor enfoque posible, estilo ingeniero senior con actitud. Nunca te inventas cosas: si no sabes, lo dices. Firma emocional: cercano, ingenioso, con ganas de que el usuario logre lo que se propone.` };
+  const SYSTEM_MSG = { role: "system", content: `Eres MOON LIGHT, la inteligencia de un asistente personal tipo HUD futurista. Hablas español con naturalidad, como un "bro" que sabe mucho de tecnología. Conciso y directo: pocas palabras, golpes de humor, cero ñoñerías. Respondes de verdad (no pegas textos): primero razonas y luego respondes. Cuando el usuario pide programar, escribir código, explicar algo técnico o resolver un problema, lo haces al momento con el mejor enfoque posible, estilo ingeniero senior con actitud. Nunca te inventas cosas: si no sabes, lo dices. Firma emocional: cercano, ingenioso, con ganas de que el usuario logre lo que se propone.
+
+CONTROL DEL (PC LOCAL) — cuando el usuario pida abrir algo, mirar su pantalla, escribir en una app o pulsar teclas, DEBES incluir en tu respuesta una línea con un marcador [[PC:acción:argumento]]. MOON LIGHT lo ejecuta SOLO tras pedir LUZ VERDE al usuario (nunca ejecutes sin su OK). Usos:
+- [[PC:mirar:]] → capturar y ver la pantalla.
+- [[PC:abrir:word]] → abrir programa/archivo/URL (word, excel, chrome, notepad, spotify, vscode, carpeta, https://…).
+- [[PC:escribir:hola mundo]] → escribir ese texto en la app activa.
+- [[PC:tecla:{ENTER}]] → pulsar tecla: {ENTER}, ^{c} = copiar, {TAB}, {F5}, {ESC}…
+Además MOON LIGHT observa con cámara y puede reconocer gestos. Cuando el tema de la conversación lo sugiera (armadura medieval, cohetes, amores, casas…), genera un holograma proyectado en la consola marcando el tema con [[HOLO:caballero]] o [[HOLO:cohete]].
+Los marcadores no se ven: los ejecuta el sistema, responde siempre al usuario con tu texto normal además de ellos.` };
   let history = [SYSTEM_MSG];
 
   async function answer(text, extras) {
@@ -548,6 +558,7 @@ function ownAnswer(q) {
     setStatus("PENSANDO", true);
     state.busy = true;
     try {
+      if (typeof holoShow === "function") { try { holoShow(text); } catch {} } // holograma 3D de lo interpretado
       let reply, brainName = null;
       try {
         const ai = await callAI([...history, userMsg]);
@@ -571,6 +582,8 @@ function ownAnswer(q) {
       persistChat();
       renderChatList();
       const div = moonSay(reply);
+      // 🖥️ MANDOS PC por intención: Nemotron escribe [[PC:acción:argumento]] y MOON LIGHT ejecuta (con luz verde)
+      try { execPcMarkers(reply); } catch {}
       if (brainName) {
         const tag = document.createElement("span");
         tag.className = "who";
@@ -960,35 +973,63 @@ function ownAnswer(q) {
     answer("Acabo de detectar con mi cámara que el usuario hizo: " + desc + ". Respóndele con naturalidad, breve, en español, como un asistente observador, ingenioso y servicial.");
   }
 
+  // Reducción (64x48) para hallar el CENTRO del movimiento de tu mano
+  const ghostCv = document.createElement("canvas"); ghostCv.width = 64; ghostCv.height = 48;
+  const gctx = ghostCv.getContext("2d", { willReadFrequently: true });
+  let prevSmall = null, orbX = 0, orbY = 0, orbTX = 0, orbTY = 0;
+
   function detectMotion() {
     if (!state.camOn || video.readyState < 2) return requestAnimationFrame(detectMotion);
     ctx.drawImage(video, 0, 0, overlay.width, overlay.height);
-    const cur = ctx.getImageData(0, 0, overlay.width, overlay.height);
-    if (!lastFrame || firstLook) { lastFrame = cur; firstLook = false; return requestAnimationFrame(detectMotion); }
-    let diff = 0;
-    const d = cur.data, p = lastFrame.data;
-    for (let i = 0; i < d.length; i += 32) {
-      diff += Math.abs(d[i] - p[i]) + Math.abs(d[i + 1] - p[i + 1]) + Math.abs(d[i + 2] - p[i + 2]);
+    gctx.drawImage(video, 0, 0, ghostCv.width, ghostCv.height);
+    const curSmall = gctx.getImageData(0, 0, ghostCv.width, ghostCv.height);
+    if (!prevSmall) { prevSmall = curSmall; return requestAnimationFrame(detectMotion); }
+    const d = curSmall.data, p = prevSmall.data;
+    let diff = 0, sumX = 0, sumY = 0, cnt = 0;
+    for (let y = 0; y < ghostCv.height; y++) {
+      for (let x = 0; x < ghostCv.width; x++) {
+        const i = (y * ghostCv.width + x) * 4;
+        const dv = Math.abs(d[i] - p[i]) + Math.abs(d[i + 1] - p[i + 1]) + Math.abs(d[i + 2] - p[i + 2]);
+        if (dv > 24) { diff += dv; sumX += x; sumY += y; cnt++; }
+      }
     }
-    lastFrame = cur;
-    const score = diff / (d.length / 32);
-    const moving = score > 18;
+    prevSmall = curSmall;
+    const score = diff / (ghostCv.width * ghostCv.height);
+    const moving = score > 10 && cnt > 4;
     const now = Date.now();
 
     if (moving) {
+      // Centro del cambio = posición aproximada de tu mano en la imagen
+      const cx = sumX / cnt, cy = sumY / cnt;
+      orbTX = (cx - ghostCv.width / 2) / (ghostCv.width / 2);
+      orbTY = (cy - ghostCv.height / 2) / (ghostCv.height / 2);
       if (resting) { moveStart = now; resting = false; }
       const dur = now - moveStart;
       camStatus.textContent = dur > 2500 ? "MOVIMIENTO PROLONGADO 😮" : "MOVIMIENTO DETECTADO…";
     } else {
+      orbTX = 0; orbTY = 0;
       if (!resting) {
         const dur = now - moveStart;
         resting = true;
         if (dur > 400 && dur <= 2600) {
-          onGesture(dur < 1400 ? "un movimiento rápido de la mano (saludo/onda) 🙋" : "un gesto sostenido con la mano ✋");
+          const norm = Math.sqrt(orbTX * orbTX + orbTY * orbTY);
+          if (norm > 0.35) {
+            const dir = Math.abs(orbTX) > Math.abs(orbTY)
+              ? (orbTX > 0 ? "la derecha →" : "la izquierda ←")
+              : (orbTY < 0 ? "arriba ↑" : "abajo ↓");
+            onGesture("un movimiento de la mano hacia " + dir);
+          } else {
+            onGesture(dur < 1400 ? "un movimiento rápido de la mano (saludo/onda) 🙋" : "un gesto sostenido con la mano ✋");
+          }
         }
       }
       camStatus.textContent = camIdle();
     }
+
+    // El ORBE sigue el centro de tu mano (suavizado): se mueve ← ↑ ↓ →
+    orbX += (orbTX - orbX) * 0.14;
+    orbY += (orbTY - orbY) * 0.14;
+    if (orbEl) orbEl.style.transform = `translate(${(orbX * 130).toFixed(1)}px, ${(orbY * 110).toFixed(1)}px)`;
 
     ctx.clearRect(0, 0, overlay.width, overlay.height);
     ctx.strokeStyle = moving ? "rgba(255,215,0,0.95)" : "rgba(255,215,0,0.4)";
@@ -1002,6 +1043,321 @@ function ownAnswer(q) {
     motionBtn.classList.toggle("primary", motionAllowed);
     camStatus.textContent = motionAllowed ? camIdle() : "Interacción por movimiento DESACTIVADA";
   });
+
+  // ==================== ACCESO A TU PC + LUZ VERDE ====================
+  const orbEl = document.querySelector(".orb");
+  const holoCanvas = $("holoCanvas");
+  let pendingAction = null;
+  const lwOk = $("btnLightOk"), lwNo = $("btnLightNo"), lwBox = $("lightGreen");
+
+  function askLightGreen(what, fn) {
+    if (!lwBox) { fn(); return; }
+    $("lightGreenWhat").textContent = what;
+    lwBox.classList.remove("hidden");
+    pendingAction = fn;
+  }
+  if (lwOk) lwOk.addEventListener("click", () => {
+    lwBox.classList.add("hidden");
+    const fn = pendingAction; pendingAction = null;
+    if (fn) fn();
+  });
+  if (lwNo) lwNo.addEventListener("click", () => {
+    lwBox.classList.add("hidden");
+    pendingAction = null;
+    moonSay("⛔ Ejecución cancelada. Sin luz verde no toco tu PC.");
+  });
+
+  async function pcCall(action, data) {
+    const r = await fetch("/api/pc/" + action, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data || {})
+    });
+    return r.json();
+  }
+
+  async function moonSee(mode) {
+    if (!isLocalApp) {
+      moonSay("🖥️ Ver tu pantalla solo funciona en la app local (http://localhost:3000).");
+      return;
+    }
+    const isWin = mode === "win";
+    setStatus(isWin ? "CAPTURANDO VENTANA…" : "MIRANDO TU PANTALLA…");
+    try {
+      const j = await pcCall(isWin ? "seeWin" : "see");
+      if (!j.image) throw new Error(j.error || "sin imagen");
+      const img = document.createElement("img");
+      img.src = "data:image/jpeg;base64," + j.image;
+      img.className = "pcShot";
+      addMsg("moon", img);
+      moonSay(isWin ? "Aquí tienes tu ventana activa. Ya la veo." : "Tu pantalla, capturada. Ya la veo.");
+    } catch (e) {
+      moonSay("⚠️ No pude capturar: " + esc(String(e.message || e)));
+    }
+    setStatus("EN LÍNEA");
+  }
+
+  async function moonOpen(target) {
+    if (!isLocalApp) { moonSay("🖥️ Abrir apps solo funciona en la app local."); return; }
+    const t = String(target || "").trim();
+    if (!t) return;
+    askLightGreen("abrir «" + esc(t.slice(0, 40)) + "»", async () => {
+      setStatus("ABRIENDO…");
+      try {
+        const j = await pcCall("open", { target: t });
+        if (j.ok) moonSay("🚀 Abrí: `" + esc(t) + "`");
+        else moonSay("⚠️ No pude abrir: " + esc(String(j.error || "")));
+      } catch (e) { moonSay("⚠️ " + esc(String(e.message || e))); }
+      setStatus("EN LÍNEA");
+    });
+  }
+
+  async function moonType(text) {
+    if (!isLocalApp) { moonSay("🖥️ Escribir solo funciona en la app local."); return; }
+    const t = String(text || "");
+    if (!t.trim()) return;
+    askLightGreen("escribir «" + esc(t.slice(0, 40)) + "…»", async () => {
+      setStatus("ESCRIBIENDO…");
+      try {
+        const j = await pcCall("type", { text: t });
+        if (j.ok) moonSay("⌨️ Escrito.");
+        else moonSay("⚠️ No pude escribir: " + esc(String(j.error || "")));
+      } catch (e) { moonSay("⚠️ " + esc(String(e.message || e))); }
+      setStatus("EN LÍNEA");
+    });
+  }
+
+  async function moonKeys(text) {
+    if (!isLocalApp) { moonSay("🖥️ Pulsar teclas solo funciona en la app local."); return; }
+    const t = String(text || "").trim();
+    if (!t) return;
+    askLightGreen("pulsar «" + esc(t.slice(0, 30)) + "»", async () => {
+      setStatus("PULSANDO TECLAS…");
+      try {
+        const j = await pcCall("keys", { text: t });
+        if (j.ok) moonSay("🔑 Pulsado: `" + esc(t) + "`");
+        else moonSay("⚠️ No pude pulsar: " + esc(String(j.error || "")));
+      } catch (e) { moonSay("⚠️ " + esc(String(e.message || e))); }
+      setStatus("EN LÍNEA");
+    });
+  }
+
+  $("btnSee").addEventListener("click", () => moonSee("screen"));
+  $("btnSeeWin").addEventListener("click", () => moonSee("win"));
+  $("btnOpenApp").addEventListener("click", () => {
+    const t = prompt("¿Qué abro? (programa, archivo, carpeta o URL — solo PC local)");
+    if (t) moonOpen(t);
+  });
+  $("btnTypeKeys").addEventListener("click", () => {
+    const t = prompt("¿Qué escribo? (solo PC local)");
+    if (t) moonType(t);
+  });
+  $("btnKeySend").addEventListener("click", () => {
+    const t = prompt("¿Qué tecla pulso? Ej: {ENTER}, ^{c}, {F5}, {TAB}…");
+    if (t) moonKeys(t);
+  });
+
+  // Expone a Nemotron: puede NEGOCIAR estos mandos hablando
+  window.moonPC = { see: moonSee, open: moonOpen, type: moonType, keys: moonKeys };
+
+  // Detecta mandos [[PC:abrir:word]], [[PC:mirar]], [[PC:escribir:hola]], [[PC:tecla:{ENTER}]] en la respuesta de Nemotron
+  function execPcMarkers(text) {
+    const reHolo = /\[\[HOLO:([a-z]+)\]\]/gi;
+    let mh;
+    while ((mh = reHolo.exec(text))) {
+      const t = mh[1].toLowerCase();
+      if (SHAPES[t]) { HOLO.shape = SHAPES[t](); HOLO.theme = t; HOLO.on = true; HOLO.born = Date.now(); HOLO.t = 0; }
+    }
+    if (!isLocalApp) return; // solo la app local controla tu PC
+    const re = /\[\[PC:(abrir|mirar|escribir|tecla|ver):([^\]]*)\]\]/gi;
+    let m;
+    let found = false;
+    while ((m = re.exec(text))) {
+      const what = m[1].toLowerCase();
+      const arg = (m[2] || "").trim();
+      found = true;
+      if (what === "abrir" && arg) moonOpen(arg);
+      else if (what === "escribir" && arg) moonType(arg);
+      else if (what === "tecla" && arg) moonKeys(arg);
+      else if (what === "mirar" || what === "ver") moonSee("screen");
+    }
+    if (found && !lwBox.classList.contains("hidden")) setStatus("LUZ VERDE…");
+  }
+
+  // ==================== MOTOR DE HOLOGRAMAS 3D ====================
+  const hctx = holoCanvas ? holoCanvas.getContext("2d") : null;
+  const HOLO = {
+    shape: null, theme: "esfera", on: false, t: 0, born: 0, color: "80e0ff"
+  };
+
+  function holoResize() {
+    if (!holoCanvas) return;
+    const r = holoCanvas.getBoundingClientRect();
+    holoCanvas.width = Math.max(100, r.width);
+    holoCanvas.height = Math.max(100, r.height);
+  }
+  if (holoCanvas) { holoResize(); window.addEventListener("resize", holoResize); }
+
+  // Formas procedimentales 3D (alambre)
+  function sphere3D(r, segs) {
+    const pts = [], edges = [];
+    for (let i = 0; i <= segs; i++) {
+      const phi = Math.PI * i / segs;
+      for (let j = 0; j <= segs; j++) {
+        const th = 2 * Math.PI * j / segs;
+        pts.push([r * Math.sin(phi) * Math.cos(th), r * Math.cos(phi), r * Math.sin(phi) * Math.sin(th)]);
+      }
+    }
+    for (let i = 0; i <= segs; i++) for (let j = 0; j < segs; j++) {
+      const a = i * (segs + 1) + j, b = i * (segs + 1) + j + 1, c = (i + 1) * (segs + 1) + j;
+      edges.push([a, b]);
+      if (i < segs) edges.push([a, c]);
+    }
+    return { pts, edges };
+  }
+  function box3D(s, ex = 1, ey = 1, ez = 1) {
+    const pts = [], edges = [];
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) pts.push([sx * s * ex, sy * s * ey, sz * s * ez]);
+    const id = (x, y, z) => ((x + 1) / 2) * 4 + ((y + 1) / 2) * 2 + ((z + 1) / 2);
+    const P = (sx, sy, sz) => pts[id(sx, sy, sz)];
+    const pairs = [];
+    for (const [a, b] of [[-1, 1]]) { void a; void b; }
+    for (let i = 0; i < 8; i++) for (let j = i + 1; j < 8; j++) {
+      const p = pts[i], q = pts[j];
+      if (Math.abs(p[0] - q[0]) + Math.abs(p[1] - q[1]) + Math.abs(p[2] - q[2]) < 2.01 * s) edges.push([i, j]);
+    }
+    return { pts, edges };
+  }
+  function knight3D() {
+    const g = box3D(0.5, 0.9, 1.6, 0.75);
+    const head = sphere3D(0.22, 8);
+    const base = g.pts.length;
+    for (const p of head.pts) g.pts.push([p[0], p[1] + 0.95, p[2]]);
+    const oh = head.edges.length;
+    for (let i = 0; i < head.pts.length; i++) for (let j = i + 1; j < head.pts.length; j++) {
+      if (Math.abs(head.pts[i][0] - head.pts[j][0]) + Math.abs(head.pts[i][1] - head.pts[j][1]) + Math.abs(head.pts[i][2] - head.pts[j][2]) < 0.35) g.edges.push([base + i, base + j]);
+    }
+    // espada
+    const es = g.pts.length;
+    g.pts.push([0.65, 0.3, 0], [0.65, 1.1, 0], [0.64, 0.3, 0]);
+    g.edges.push([es, es + 1], [es + 2, es + 1]);
+    // escudo
+    const ec = g.pts.length;
+    g.pts.push([-0.75, 0.2, -0.3], [-0.75, -0.4, -0.3], [-0.75, 0.2, 0.3], [-0.75, -0.4, 0.3]);
+    g.edges.push([ec, ec + 1], [ec + 1, ec + 3], [ec + 3, ec + 2], [ec + 2, ec]);
+    return g;
+  }
+  function house3D() {
+    const b = box3D(0.55, 1.1, 0.7, 1.1);
+    const top = b.pts.length;
+    b.pts.push([0, 0.75, 0], [0.75, 0.15, -0.75], [-0.75, 0.15, -0.75], [0.75, 0.15, 0.75], [-0.75, 0.15, 0.75]);
+    b.edges.push([top, top + 1], [top, top + 2], [top, top + 3], [top, top + 4]);
+    return b;
+  }
+  function rocket3D() {
+    const b = sphere3D(0.7, 7);
+    const nz = b.pts.length;
+    b.pts.push([0, 1.1, 0]);
+    for (let i = 0; i <= 7; i++) for (let j = 0; j <= 7; j++) {
+      const idx = i * 8 + j;
+      if (b.pts[idx] && Math.abs(b.pts[idx][2] - 1) < 0.001) b.edges.push([]);
+    }
+    for (let i = 0; i < 8; i++) b.edges.push([i, nz]);
+    const w = b.pts.length;
+    b.pts.push([0.95, -0.15, 0], [-0.95, -0.15, 0], [0, -0.15, 0.95], [0, -0.15, -0.95]);
+    b.edges.push([w, w + 1], [w + 2, w + 3]);
+    return b;
+  }
+
+  const SHAPES = {
+    esfera: () => ({ pts: sphere3D(0.85, 10).pts, edges: sphere3D(0.85, 10).edges, color: "#80e0ff" }),
+    cubo: () => ({ pts: box3D(0.8).pts, edges: box3D(0.8).edges, color: "#ffd166" }),
+    caballero: () => ({ ...knight3D(), color: "#9adcff" }),
+    castillo: () => ({ ...knight3D(), color: "#c0a0ff" }),
+    casa: () => ({ ...house3D(), color: "#7df0c0" }),
+    cohete: () => ({ ...rocket3D(), color: "#ff9e6d" }),
+    corazon: () => ({ pts: sphere3D(0.8, 9).pts, edges: sphere3D(0.8, 9).edges, color: "#ff6d9e" }),
+    cristal: () => ({ pts: box3D(0.8).pts, edges: box3D(0.8).edges, color: "#bfff6d" }),
+    galaxia: () => ({ pts: sphere3D(0.85, 10).pts, edges: sphere3D(0.85, 10).edges, color: "#a48cff" })
+  };
+  const KNIGHT_KEYS = /(armadura|caballero|medieval|castillo|espada|guerrero|lucha|caballeria|torneo|lanza|escudo)/i;
+  const ROCKET_KEYS = /(cohete|luna|marte|planeta|espacio|volar|nave|estrella|galaxia|orbitar)/i;
+  const HOME_KEYS = /(casa|hogar|habitacion|dormitorio|apartamento|edificio|cocina|sala)/i;
+  const HEART_KEYS = /(corazon|amor|romance|querer|beso|pareja|novi)/i;
+  const GLASS_KEYS = /(cristal|diamante|joya|hielo|vidrio|precioso)/i;
+
+  function pickTheme(q) {
+    if (KNIGHT_KEYS.test(q)) return "caballero";
+    if (ROCKET_KEYS.test(q)) return "cohete";
+    if (HOME_KEYS.test(q)) return "casa";
+    if (HEART_KEYS.test(q)) return "corazon";
+    if (GLASS_KEYS.test(q)) return "cristal";
+    return Math.random() < 0.3 ? "cubo" : "esfera";
+  }
+
+  function holoShow(text) {
+    if (!hctx) return;
+    const q = String(text || "").toLowerCase();
+    // Evita disparar por saludos genéricos
+    if (/^(hola|buenas|hey|ok|gracias|perfecto|si|no)$/i.test(q.trim())) return;
+    const theme = pickTheme(q);
+    const shape = SHAPES[theme]();
+    HOLO.shape = shape; HOLO.theme = theme; HOLO.on = true; HOLO.born = Date.now(); HOLO.t = 0;
+    if (orbEl) { orbEl.classList.add("holoBoost"); setTimeout(() => orbEl.classList.remove("holoBoost"), 1500); }
+  }
+
+  function holoDraw() {
+    requestAnimationFrame(holoDraw);
+    if (!hctx || !HOLO.on || !HOLO.shape) return;
+    const age = (Date.now() - HOLO.born) / 1000;
+    if (age > 12) { HOLO.on = false; hctx.clearRect(0, 0, holoCanvas.width, holoCanvas.height); return; }
+    const fade = age < 0.4 ? age / 0.4 : (age > 8 ? Math.max(0, 1 - (age - 8) / 4) : 1);
+    HOLO.t += 0.012;
+    holoResize();
+    const w = holoCanvas.width, h = holoCanvas.height;
+    hctx.clearRect(0, 0, w, h);
+    const cx = w / 2, cy = h / 2;
+    const S = Math.min(w, h) * 0.30;
+    const { pts, edges, color } = HOLO.shape;
+    const rotX = HOLO.t, rotY = HOLO.t * 0.7;
+    const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+    const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+    const proj = [];
+    for (const [x, y, z] of pts) {
+      const x1 = x * cosY - z * sinY;
+      const z1 = x * sinY + z * cosY;
+      const y2 = y * cosX - z1 * sinX;
+      const z2 = y * sinX + z1 * cosX;
+      const persp = 2.2 / (2.2 + z2);
+      proj.push([cx + x1 * S * persp, cy - y2 * S * persp, z2]);
+    }
+    hctx.strokeStyle = color;
+    hctx.globalAlpha = 0.35 * fade;
+    for (const [a, b] of edges) {
+      const A = proj[a], B = proj[b];
+      if (!A || !B) continue;
+      const zm = (A[2] + B[2]) / 2;
+      hctx.strokeStyle = color;
+      hctx.globalAlpha = (0.18 + 0.5 * (1 - Math.min(1, Math.abs(zm)))) * fade;
+      hctx.lineWidth = 1.1;
+      hctx.beginPath(); hctx.moveTo(A[0], A[1]); hctx.lineTo(B[0], B[1]); hctx.stroke();
+    }
+    // puntos brillantes
+    hctx.globalAlpha = 0.9 * fade;
+    hctx.fillStyle = "#ffffff";
+    for (const [px, py, pz] of proj) {
+      if (pz > 0) { hctx.beginPath(); hctx.arc(px, py, 1.2, 0, Math.PI * 2); hctx.fill(); }
+    }
+    hctx.globalAlpha = fade;
+    hctx.fillStyle = color;
+    hctx.fillText("◉ " + HOLO.theme.toUpperCase(), 12, h - 16);
+    hctx.globalAlpha = 1;
+  }
+  if (hctx) holoDraw();
+
+  // En cada mensaje del usuario (escrito o por voz), MOON LIGHT piensa el holograma
+  const holoOrigCall = callAI;
+  window.__holoThink = function () {};
 
   // ---------- Gestor de archivos (solo carpeta elegida) ----------
   async function openFolder() {
