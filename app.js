@@ -1371,14 +1371,28 @@ Los marcadores no se ven: los ejecuta el sistema, responde siempre al usuario co
     const ox = (lon) => ((lon + 180) / 360) * TW;
     const oy = (lat) => ((90 - lat) / 180) * TH;
 
-    // Océano
-    const og = tctx.createLinearGradient(0, 0, 0, TH);
-    og.addColorStop(0, "#062b63"); og.addColorStop(0.5, "#0b4a9e"); og.addColorStop(1, "#063d8c");
-    tctx.fillStyle = og; tctx.fillRect(0, 0, TW, TH);
-    // Brillo oceánico
-    const oceanGlow = tctx.createRadialGradient(TW / 2, TH / 2, 30, TW / 2, TH / 2, TH * 0.9);
-    oceanGlow.addColorStop(0, "rgba(160,220,255,0.28)"); oceanGlow.addColorStop(1, "rgba(0,0,0,0)");
-    tctx.fillStyle = oceanGlow; tctx.fillRect(0, 0, TW, TH);
+    // Paleta holograma Iron Man (dorado)
+    const GOLD = "255,190,40", GOLDL = "255,216,90", GOLDH = "255,241,170";
+    // Base de proyección: oscuro translúcido (como el visor del proyector)
+    tctx.clearRect(0, 0, TW, TH);
+    const bg = tctx.createLinearGradient(0, 0, 0, TH);
+    bg.addColorStop(0, "rgba(18,20,34,0.55)"); bg.addColorStop(0.5, "rgba(6,10,22,0.40)"); bg.addColorStop(1, "rgba(18,20,34,0.55)");
+    tctx.fillStyle = bg; tctx.fillRect(0, 0, TW, TH);
+    // Rejilla de meridianos y paralelos (gira con el planeta, dorada, estilo retícula)
+    tctx.strokeStyle = "rgba(" + GOLDL + ",0.25)"; tctx.lineWidth = 2;
+    for (let lo = -150; lo <= 180; lo += 30) {
+      tctx.beginPath(); tctx.moveTo(ox(lo), 0); tctx.lineTo(ox(lo), TH); tctx.stroke();
+    }
+    for (let la = -60; la <= 60; la += 30) {
+      tctx.beginPath(); tctx.moveTo(0, oy(la)); tctx.lineTo(TW, oy(la)); tctx.stroke();
+    }
+    // Nodos focales en los cruces (puntos de retícula)
+    tctx.fillStyle = "rgba(" + GOLDH + ",0.55)";
+    for (let lo = -180; lo < 180; lo += 60) {
+      for (let la = -60; la <= 60; la += 30) {
+        tctx.beginPath(); tctx.arc(ox(lo), oy(la), 3.5, 0, Math.PI * 2); tctx.fill();
+      }
+    }
 
     // Continentes (polígonos simplificados: [lon, lat])
     const conts = [
@@ -1399,28 +1413,43 @@ Los marcadores no se ven: los ejecuta el sistema, responde siempre al usuario co
     let ci = 0;
     for (const c of conts) {
       ci++;
-      const fill = ci === 5
-        ? "#4c9a3f"
-        : (ci === 3 ? "#6fae52" : (ci === 1 || ci === 2 ? "#3f8f3a" : "#7aae4a"));
       tctx.beginPath();
       c.forEach(([lon, lat], i) => { const x = ox(lon), y = oy(lat); i ? tctx.lineTo(x, y) : tctx.moveTo(x, y); });
       tctx.closePath();
-      tctx.fillStyle = fill;
+      // resplandor dorado interior muy suave
+      tctx.fillStyle = "rgba(" + GOLD + ",0.10)";
       tctx.fill();
-      tctx.strokeStyle = "rgba(0,40,20,0.55)"; tctx.lineWidth = 2; tctx.stroke();
-      // relieve sutil
-      tctx.fillStyle = "rgba(255,255,255,0.10)";
-      tctx.fill();
+      // trazo exterior desenfocado (glow)
+      tctx.strokeStyle = "rgba(" + GOLD + ",0.55)"; tctx.lineWidth = 7;
+      tctx.stroke();
+      // linea fina nítida color amarillo claro
+      tctx.strokeStyle = "rgba(" + GOLDL + ",0.95)"; tctx.lineWidth = 2;
+      tctx.stroke();
+      // remaches punteados como circuito holográfico
+      tctx.fillStyle = "rgba(" + GOLDH + ",0.9)";
+      let step = Math.max(1, Math.floor(c.length / 8));
+      for (let i = 0; i < c.length; i += step) {
+        const [lon, lat] = c[i];
+        tctx.beginPath(); tctx.arc(ox(lon), oy(lat), 2.5, 0, Math.PI * 2); tctx.fill();
+      }
     }
-    // Detalles: Japón, UK, Madagascar, N. Zelanda
-    const dot = (lon, lat, r) => { tctx.beginPath(); tctx.arc(ox(lon), oy(lat), r, 0, Math.PI * 2); tctx.fillStyle = "#4c9a3f"; tctx.fill(); };
+    // Detalles: Japón, UK, Madagascar, N. Zelanda (puntos con glow)
+    const dot = (lon, lat, r) => {
+      tctx.beginPath(); tctx.arc(ox(lon), oy(lat), r, 0, Math.PI * 2);
+      tctx.fillStyle = "rgba(" + GOLD + ",0.35)"; tctx.fill();
+      tctx.beginPath(); tctx.arc(ox(lon), oy(lat), r * 0.55, 0, Math.PI * 2);
+      tctx.fillStyle = "rgba(" + GOLDH + ",0.9)"; tctx.fill();
+    };
     dot(139, 37, 9); dot(143, 42, 6); dot(-3, 54, 7); dot(47, -19, 9); dot(174, -40, 10); dot(172, -35, 7); dot(55, -26, 4);
-    // Casquetes polares
-    tctx.fillStyle = "rgba(235,245,255,0.92)";
-    tctx.beginPath(); tctx.rect(0, 0, TW, 18); tctx.rect(0, TH - 22, TW, 22); tctx.fill();
-    tctx.globalAlpha = 0.5; tctx.beginPath(); tctx.rect(0, 18, TW, 12); tctx.rect(0, TH - 34, TW, 12); tctx.fill(); tctx.globalAlpha = 1;
+    // Casquetes polares: trazo de brillo (línea punteada)
+    tctx.strokeStyle = "rgba(" + GOLDH + ",0.85)"; tctx.lineWidth = 2;
+    tctx.setLineDash([6, 8]);
+    tctx.beginPath(); tctx.moveTo(0, 6); tctx.lineTo(TW, 6); tctx.stroke();
+    tctx.beginPath(); tctx.moveTo(0, 20); tctx.lineTo(TW, 20); tctx.stroke();
+    tctx.beginPath(); tctx.moveTo(0, TH - 20); tctx.lineTo(TW, TH - 20); tctx.stroke();
+    tctx.setLineDash([]);
 
-    // --- Raycasting esférico (verdadera esfera girando) ---
+    // --- Raycasting esférico (verdadera esfera girando) — proyección holográfica dorada ---
     const PIX = ectx.createImageData(E, E);
     const texData = tctx.getImageData(0, 0, TW, TH).data;
     let rot = 0;
@@ -1445,20 +1474,38 @@ Los marcadores no se ven: los ejecuta el sistema, responde siempre al usuario co
           let v = Math.round((90 - lat) / 180 * TH) % TH;
           if (u < 0) u += TW; if (v < 0) v += TH;
           const ti = (v * TW + u) * 4;
-          // shade esférica (iluminado desde la derecha del sol)
-          const shade = Math.max(0, rx); // luz en +x
-          const light = 0.5 + 0.5 * shade;
+          // sombreado esférico suave: más luz en el centro-aparición, menos en bordes del disco
+          const shade = 0.55 + 0.45 * nx; // nx +1 = centro
+          // alfa de proyección: más denso cerca del centro del disco, se desvanece al borde
+          const a = 0.55 + 0.45 * nx;
           const idx = (py * E + px) * 4;
-          PIX.data[idx] = texData[ti] * light;
-          PIX.data[idx + 1] = texData[ti + 1] * light;
-          PIX.data[idx + 2] = texData[ti + 2] * light;
-          PIX.data[idx + 3] = 255;
+          PIX.data[idx] = texData[ti] * shade;
+          PIX.data[idx + 1] = texData[ti + 1] * shade;
+          PIX.data[idx + 2] = texData[ti + 2] * shade;
+          PIX.data[idx + 3] = a * 255;
         }
       }
       ectx.putImageData(PIX, 0, 0);
-      // halo exterior
-      const gr = ectx.createRadialGradient(R, R, R * 0.5, R, R, R);
-      gr.addColorStop(0, "rgba(120,180,255,0.0)"); gr.addColorStop(0.85, "rgba(120,180,255,0.0)"); gr.addColorStop(1, "rgba(160,210,255,0.28)");
+      // Parpadeo holográfico sutil
+      const flick = 0.88 + 0.10 * Math.sin(rot * 60);
+      ectx.save();
+      ectx.globalAlpha = flick;
+      ectx.shadowColor = "rgba(255,200,60,0.9)";
+      ectx.shadowBlur = 18;
+      ectx.globalCompositeOperation = "lighter";
+      ectx.drawImage(earthCv, 0, 0);   // re-expon parcial para glow (acumula sobre el mismo)
+      // Anillo de escaneo barriendo (gran círculo dorado)
+      ectx.globalCompositeOperation = "source-over";
+      ectx.strokeStyle = "rgba(255,230,120,0.35)";
+      ectx.lineWidth = 1.5;
+      const sweep = ((rot * Math.PI) % (Math.PI * 2)) - Math.PI;
+      ectx.beginPath();
+      ectx.ellipse(R - Math.cos(sweep + Math.PI / 2) * 0, R, R * 0.9, R * 0.9 * Math.sin(sweep + Math.PI / 2) + R * 0.1, 0, 0, Math.PI * 2);
+      ectx.stroke();
+      ectx.restore();
+      // halo exterior dorado
+      const gr = ectx.createRadialGradient(R, R, R * 0.55, R, R, R);
+      gr.addColorStop(0, "rgba(255,190,40,0.0)"); gr.addColorStop(0.85, "rgba(255,190,40,0.0)"); gr.addColorStop(1, "rgba(255,200,80,0.35)");
       ectx.fillStyle = gr; ectx.beginPath(); ectx.arc(R, R, R, 0, Math.PI * 2); ectx.fill();
       rot += 0.004; // velocidad de giro
       requestAnimationFrame(drawEarth);
@@ -1468,8 +1515,8 @@ Los marcadores no se ven: los ejecuta el sistema, responde siempre al usuario co
     // El orbe de la cámara deja de ser el orbe dorado; ahora el planeta TIERRA sigue la mano
     window.__earth = {
       boost() {
-        earthCv.style.boxShadow = "0 0 120px 30px rgba(120,200,255,0.5), 0 0 220px 80px rgba(90,150,255,0.25)";
-        setTimeout(() => { if (earthCv) earthCv.style.boxShadow = "0 0 90px 20px rgba(80,160,255,0.25), 0 0 170px 60px rgba(60,120,255,0.12)"; }, 1400);
+        earthCv.style.boxShadow = "0 0 120px 30px rgba(255,200,60,0.55), 0 0 240px 90px rgba(255,170,30,0.30)";
+        setTimeout(() => { if (earthCv) earthCv.style.boxShadow = "0 0 80px 18px rgba(255,200,60,0.30), 0 0 170px 60px rgba(255,170,30,0.16)"; }, 1400);
       }
     };
   }

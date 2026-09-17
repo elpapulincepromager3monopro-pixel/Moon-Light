@@ -132,8 +132,8 @@ body::after {
 .earthCanvas {
   position: absolute; inset: 0; margin: auto; width: 320px; height: 320px;
   border-radius: 50%; z-index: 0; pointer-events: none;
-  box-shadow: 0 0 90px 20px rgba(80,160,255,0.25), 0 0 170px 60px rgba(60,120,255,0.12);
-  opacity: 0.85;
+  box-shadow: 0 0 80px 18px rgba(255,200,60,0.30), 0 0 170px 60px rgba(255,170,30,0.16);
+  opacity: 0.95;
 }
 
 .chat {
