@@ -1045,7 +1045,7 @@ Los marcadores no se ven: los ejecuta el sistema, responde siempre al usuario co
   });
 
   // ==================== ACCESO A TU PC + LUZ VERDE ====================
-  const orbEl = document.querySelector(".orb");
+  const orbEl = $("earthCanvas") || document.querySelector(".orb");
   const holoCanvas = $("holoCanvas");
   let pendingAction = null;
   const lwOk = $("btnLightOk"), lwNo = $("btnLightNo"), lwBox = $("lightGreen");
@@ -1354,6 +1354,125 @@ Los marcadores no se ven: los ejecuta el sistema, responde siempre al usuario co
     hctx.globalAlpha = 1;
   }
   if (hctx) holoDraw();
+
+  // ==================== PLANETA TIERRA GIRATORIO ====================
+  const earthCv = $("earthCanvas");
+  let earth = null;
+  if (earthCv) {
+    const E = 240; // resolución interna del planeta
+    earthCv.width = E; earthCv.height = E;
+    const ectx = earthCv.getContext("2d");
+
+    // --- Textura equirectangular dibujada proceduralmente (lat/lon → x/y) ---
+    const TW = 1024, TH = 512;
+    const tex = document.createElement("canvas");
+    tex.width = TW; tex.height = TH;
+    const tctx = tex.getContext("2d");
+    const ox = (lon) => ((lon + 180) / 360) * TW;
+    const oy = (lat) => ((90 - lat) / 180) * TH;
+
+    // Océano
+    const og = tctx.createLinearGradient(0, 0, 0, TH);
+    og.addColorStop(0, "#062b63"); og.addColorStop(0.5, "#0b4a9e"); og.addColorStop(1, "#063d8c");
+    tctx.fillStyle = og; tctx.fillRect(0, 0, TW, TH);
+    // Brillo oceánico
+    const oceanGlow = tctx.createRadialGradient(TW / 2, TH / 2, 30, TW / 2, TH / 2, TH * 0.9);
+    oceanGlow.addColorStop(0, "rgba(160,220,255,0.28)"); oceanGlow.addColorStop(1, "rgba(0,0,0,0)");
+    tctx.fillStyle = oceanGlow; tctx.fillRect(0, 0, TW, TH);
+
+    // Continentes (polígonos simplificados: [lon, lat])
+    const conts = [
+      // Norteamérica
+      [[-168,66],[-156,71],[-140,72],[-124,73],[-112,72],[-98,74],[-84,70],[-76,62],[-70,60],[-64,50],[-56,45],[-60,40],[-66,38],[-66,44],[-60,48],[-64,52],[-72,50],[-76,55],[-80,60],[-85,64],[-78,66],[-78,60],[-72,58],[-74,52],[-70,50],[-66,46],[-62,42],[-58,38],[-54,36],[-64,30],[-74,28],[-76,22],[-82,20],[-86,22],[-90,20],[-96,16],[-102,18],[-106,22],[-108,26],[-110,31],[-116,34],[-120,38],[-118,34],[-124,40],[-128,44],[-134,48],[-140,54],[-140,56],[-146,60],[-152,62],[-160,64],[-166,66]],
+      // Sudamérica
+      [[-78,12],[-72,10],[-60,12],[-52,5],[-38,-4],[-44,-10],[-48,-18],[-54,-30],[-58,-42],[-64,-50],[-68,-52],[-70,-50],[-66,-44],[-64,-38],[-62,-30],[-64,-24],[-70,-16],[-76,-6],[-80,4],[-80,8]],
+      // África
+      [[-16,35],[-6,36],[8,37],[14,34],[20,32],[28,31],[36,21],[40,12],[45,12],[51,12],[48,0],[42,-8],[38,-22],[32,-34],[26,-35],[20,-35],[15,-28],[16,-15],[10,-5],[-2,0],[-10,4],[-14,12],[-12,20],[-17,28]],
+      // Groenlandia
+      [[-55,76],[-48,77],[-42,74],[-38,69],[-40,65],[-46,63],[-52,64],[-58,68],[-60,72]],
+      // Eurasia
+      [[-10,36],[-4,40],[4,42],[10,38],[16,39],[22,40],[28,41],[34,45],[40,46],[44,41],[40,38],[42,36],[50,35],[48,38],[50,42],[56,45],[58,49],[62,54],[68,57],[72,60],[78,62],[84,64],[90,66],[96,66],[102,68],[108,70],[114,72],[120,72],[126,68],[132,68],[138,66],[144,66],[150,64],[156,62],[162,60],[168,62],[170,66],[170,60],[166,58],[160,58],[156,60],[152,58],[148,56],[142,56],[138,58],[134,54],[130,52],[126,50],[122,48],[116,44],[112,40],[108,36],[104,34],[100,30],[96,26],[92,22],[88,24],[84,26],[80,24],[78,20],[74,18],[70,16],[66,12],[60,10],[56,12],[52,18],[48,24],[46,30],[50,34],[52,38],[48,40]],
+      // Australia
+      [[114,-21],[122,-17],[130,-15],[138,-14],[145,-17],[150,-22],[153,-28],[148,-36],[140,-38],[132,-36],[126,-32],[120,-28],[116,-26],[113,-23]],
+      // Islas UK pequeñas, Japón, Madagascar, Nueva Zelanda (puntos)
+    ];
+    let ci = 0;
+    for (const c of conts) {
+      ci++;
+      const fill = ci === 5
+        ? "#4c9a3f"
+        : (ci === 3 ? "#6fae52" : (ci === 1 || ci === 2 ? "#3f8f3a" : "#7aae4a"));
+      tctx.beginPath();
+      c.forEach(([lon, lat], i) => { const x = ox(lon), y = oy(lat); i ? tctx.lineTo(x, y) : tctx.moveTo(x, y); });
+      tctx.closePath();
+      tctx.fillStyle = fill;
+      tctx.fill();
+      tctx.strokeStyle = "rgba(0,40,20,0.55)"; tctx.lineWidth = 2; tctx.stroke();
+      // relieve sutil
+      tctx.fillStyle = "rgba(255,255,255,0.10)";
+      tctx.fill();
+    }
+    // Detalles: Japón, UK, Madagascar, N. Zelanda
+    const dot = (lon, lat, r) => { tctx.beginPath(); tctx.arc(ox(lon), oy(lat), r, 0, Math.PI * 2); tctx.fillStyle = "#4c9a3f"; tctx.fill(); };
+    dot(139, 37, 9); dot(143, 42, 6); dot(-3, 54, 7); dot(47, -19, 9); dot(174, -40, 10); dot(172, -35, 7); dot(55, -26, 4);
+    // Casquetes polares
+    tctx.fillStyle = "rgba(235,245,255,0.92)";
+    tctx.beginPath(); tctx.rect(0, 0, TW, 18); tctx.rect(0, TH - 22, TW, 22); tctx.fill();
+    tctx.globalAlpha = 0.5; tctx.beginPath(); tctx.rect(0, 18, TW, 12); tctx.rect(0, TH - 34, TW, 12); tctx.fill(); tctx.globalAlpha = 1;
+
+    // --- Raycasting esférico (verdadera esfera girando) ---
+    const PIX = ectx.createImageData(E, E);
+    const texData = tctx.getImageData(0, 0, TW, TH).data;
+    let rot = 0;
+    function drawEarth() {
+      ectx.putImageData(PIX, 0, 0); // limpia con transparente
+      const R = E / 2;
+      const cosR = Math.cos(rot), sinR = Math.sin(rot);
+      for (let py = 0; py < E; py++) {
+        for (let px = 0; px < E; px++) {
+          // vector esfera unitario con eje Y arriba
+          const nx = (px - R) / R;
+          const ny = -(py - R) / R;
+          if (nx * nx + ny * ny > 1) continue; // fuera del disco
+          const nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
+          // rotar alrededor del eje Y (spins)
+          const rx = nx * cosR + nz * sinR;
+          const rz = -nx * sinR + nz * cosR;
+          // mapear a textura equirectangular (punta del vector en esfera unidad)
+          const lon = Math.atan2(rz, rx) * 180 / Math.PI;   // -180..180
+          const lat = Math.asin(ny) * 180 / Math.PI;         // -90..90
+          let u = Math.round((lon + 180) / 360 * TW) % TW;
+          let v = Math.round((90 - lat) / 180 * TH) % TH;
+          if (u < 0) u += TW; if (v < 0) v += TH;
+          const ti = (v * TW + u) * 4;
+          // shade esférica (iluminado desde la derecha del sol)
+          const shade = Math.max(0, rx); // luz en +x
+          const light = 0.5 + 0.5 * shade;
+          const idx = (py * E + px) * 4;
+          PIX.data[idx] = texData[ti] * light;
+          PIX.data[idx + 1] = texData[ti + 1] * light;
+          PIX.data[idx + 2] = texData[ti + 2] * light;
+          PIX.data[idx + 3] = 255;
+        }
+      }
+      ectx.putImageData(PIX, 0, 0);
+      // halo exterior
+      const gr = ectx.createRadialGradient(R, R, R * 0.5, R, R, R);
+      gr.addColorStop(0, "rgba(120,180,255,0.0)"); gr.addColorStop(0.85, "rgba(120,180,255,0.0)"); gr.addColorStop(1, "rgba(160,210,255,0.28)");
+      ectx.fillStyle = gr; ectx.beginPath(); ectx.arc(R, R, R, 0, Math.PI * 2); ectx.fill();
+      rot += 0.004; // velocidad de giro
+      requestAnimationFrame(drawEarth);
+    }
+    requestAnimationFrame(drawEarth);
+
+    // El orbe de la cámara deja de ser el orbe dorado; ahora el planeta TIERRA sigue la mano
+    window.__earth = {
+      boost() {
+        earthCv.style.boxShadow = "0 0 120px 30px rgba(120,200,255,0.5), 0 0 220px 80px rgba(90,150,255,0.25)";
+        setTimeout(() => { if (earthCv) earthCv.style.boxShadow = "0 0 90px 20px rgba(80,160,255,0.25), 0 0 170px 60px rgba(60,120,255,0.12)"; }, 1400);
+      }
+    };
+  }
 
   // En cada mensaje del usuario (escrito o por voz), MOON LIGHT piensa el holograma
   const holoOrigCall = callAI;
