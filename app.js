@@ -1044,8 +1044,89 @@ Los marcadores no se ven: los ejecuta el sistema, responde siempre al usuario co
     camStatus.textContent = motionAllowed ? camIdle() : "Interacción por movimiento DESACTIVADA";
   });
 
+  // ==================== PLANETA DORADO SOLIDO GIRANDO ====================
+  const gpEl = $("goldPlanet");
+  if (gpEl) {
+    const G = 260;
+    gpEl.width = G; gpEl.height = G;
+    const gctx = gpEl.getContext("2d");
+    // Textura equirectangular dorada (bandas y turbulencias)
+    const TWD = 512, THD = 256;
+    const tex = document.createElement("canvas");
+    tex.width = TWD; tex.height = THD;
+    const tc = tex.getContext("2d");
+    const golds = ["#8a5e00", "#b8860b", "#d4a017", "#f2c14e", "#ffe066", "#b8860b", "#7a5200", "#d4a017", "#ffd700"];
+    for (let y = 0; y < THD; y++) {
+      const g1 = golds[Math.floor(y / 28) % golds.length];
+      const g2 = golds[Math.floor((y + 14) / 28) % golds.length];
+      tc.fillStyle = g1;
+      tc.fillRect(0, y, TWD, 1);
+    }
+    // relieve: manchas/montañas doradas mas oscuras y brillantes
+    for (let i = 0; i < 9000; i++) {
+      const x = Math.floor(Math.random() * TWD);
+      const y = Math.floor(Math.random() * THD);
+      const v = Math.floor(Math.random() * 3);
+      tc.fillStyle = v === 0 ? "rgba(255,230,110,0.12)" : v === 1 ? "rgba(90,55,0,0.28)" : "rgba(255,240,170,0.10)";
+      tc.fillRect(x, y, 2 + Math.random() * 3, 1);
+    }
+    // nubes sutilmente mas claras
+    for (let i = 0; i < 2600; i++) {
+      const x = Math.floor(Math.random() * TWD);
+      tc.fillStyle = "rgba(255,245,190,0.05)";
+      tc.fillRect(x, Math.floor(Math.random() * THD), 3 + Math.random() * 8, 1);
+    }
+    const PIX = gctx.createImageData(G, G);
+    const td = tc.getImageData(0, 0, TWD, THD).data;
+    let ang = 0;
+    function drawGold() {
+      gctx.putImageData(PIX, 0, 0);
+      const R = G / 2;
+      const ca = Math.cos(ang), sa = Math.sin(ang);
+      for (let py = 0; py < G; py++) {
+        for (let px = 0; px < G; px++) {
+          const nx = (px - R) / R;
+          const ny = -(py - R) / R;
+          if (nx * nx + ny * ny > 1) continue;
+          const nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
+          // rotacion eje Y
+          const rx = nx * ca + nz * sa;
+          const rz = -nx * sa + nz * ca;
+          const lon = Math.atan2(rz, rx) * 180 / Math.PI;
+          const lat = Math.asin(ny) * 180 / Math.PI;
+          let u = Math.round((lon + 180) / 360 * TWD) % TWD;
+          let v = Math.round((90 - lat) / 180 * THD) % THD;
+          if (u < 0) u += TWD; if (v < 0) v += THD;
+          const ti = (v * TWD + u) * 4;
+          // luz esferica (sol desde arriba-izquierda) + especular
+          const drel = Math.max(0, (nx * -0.45 + nz * -0.89 + 1) / 2);
+          const light = 0.42 + 0.58 * drel;
+          const rim = Math.max(0, rx);
+          const spec = Math.pow(Math.max(0, rx * -1 + 0.4), 6) * 0.55;
+          const idx = (py * G + px) * 4;
+          PIX.data[idx] = td[ti] * light + 255 * spec;
+          PIX.data[idx + 1] = td[ti + 1] * light + 235 * spec;
+          PIX.data[idx + 2] = td[ti + 2] * light + 170 * spec;
+          PIX.data[idx + 3] = 255;
+        }
+      }
+      gctx.putImageData(PIX, 0, 0);
+      // brillo especular amplio + halo
+      const gl = gctx.createRadialGradient(R * 0.78, R * 0.76, R * 0.1, R * 0.78, R * 0.76, R * 0.9);
+      gl.addColorStop(0, "rgba(255,244,190,0.18)");
+      gl.addColorStop(1, "rgba(255,244,190,0)");
+      gctx.fillStyle = gl; gctx.fillRect(0, 0, G, G);
+      ang += 0.003;
+      requestAnimationFrame(drawGold);
+    }
+    requestAnimationFrame(drawGold);
+    window.boostGold = function () {
+      gpEl.style.boxShadow = "0 0 130px 35px rgba(255,210,80,0.65), 0 0 240px 90px rgba(255,180,40,0.35)";
+      setTimeout(() => { gpEl.style.boxShadow = "0 0 80px 18px rgba(255,200,60,0.35), 0 0 180px 70px rgba(255,170,30,0.18)"; }, 1500);
+    };
+  }
+
   // ==================== ACCESO A TU PC + LUZ VERDE ====================
-  const orbEl = document.querySelector(".orb");
   const holoCanvas = $("holoCanvas");
   let pendingAction = null;
   const lwOk = $("btnLightOk"), lwNo = $("btnLightNo"), lwBox = $("lightGreen");
@@ -1304,6 +1385,7 @@ Los marcadores no se ven: los ejecuta el sistema, responde siempre al usuario co
     const shape = SHAPES[theme]();
     HOLO.shape = shape; HOLO.theme = theme; HOLO.on = true; HOLO.born = Date.now(); HOLO.t = 0;
     if (orbEl) { orbEl.classList.add("holoBoost"); setTimeout(() => orbEl.classList.remove("holoBoost"), 1500); }
+    if (window.boostGold) window.boostGold();
   }
 
   function holoDraw() {
