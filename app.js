@@ -1045,6 +1045,7 @@ Los marcadores no se ven: los ejecuta el sistema, responde siempre al usuario co
   });
 
   // ==================== PLANETA DORADO SOLIDO GIRANDO ====================
+  const orbEl = document.querySelector(".orb");
   const gpEl = $("goldPlanet");
   if (gpEl) {
     const G = 260;
