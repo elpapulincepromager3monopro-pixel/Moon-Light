@@ -1,4 +1,4 @@
-const CACHE = "moonlight-v2";
+const CACHE = "moonlight-v3";
 const SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", (e) => {

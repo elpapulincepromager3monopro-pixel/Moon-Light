@@ -231,9 +231,10 @@ const server = http.createServer((req, res) => {
       return;
     }
     const ext = path.extname(safePath).toLowerCase();
+    const shell = [".html", ".js", ".css", ".json", ".svg", ".webmanifest"].includes(ext);
     res.writeHead(200, {
       "Content-Type": MIME[ext] || "application/octet-stream",
-      "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=3600"
+      "Cache-Control": shell ? "no-cache, no-store, must-revalidate" : "public, max-age=3600"
     });
     res.end(data);
   });
